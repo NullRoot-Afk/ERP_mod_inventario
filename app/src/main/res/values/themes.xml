@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    themes.xml — tema OSCURO fijo.
+    Reemplaza el Theme.ERPBodega anterior (el de fondo claro) por este.
+    Usa Theme.MaterialComponents.NoActionBar (SIN "DayNight") a propósito:
+    así queda oscuro siempre, sin importar la configuración del sistema
+    del dispositivo — consistente con el diseño de referencia.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="Theme.ERPBodega" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="colorPrimary">@color/accent_fill</item>
+        <item name="colorPrimaryVariant">@color/accent_fill</item>
+        <item name="colorOnPrimary">@color/on_accent</item>
+
+        <item name="colorSecondary">@color/accent_fill</item>
+        <item name="colorSecondaryVariant">@color/accent_fill</item>
+        <item name="colorOnSecondary">@color/on_accent</item>
+
+        <!-- Estos dos son los que hacen que TextInputLayout, cursores,
+             y controles en general se pinten claros sobre fondo oscuro -->
+        <item name="colorSurface">@color/surface_input</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnBackground">@color/text_primary</item>
+        <item name="android:textColorHint">@color/text_secondary</item>
+
+        <item name="android:windowBackground">@color/surface_background</item>
+        <item name="android:statusBarColor">@color/surface_background</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+    </style>
+
+</resources>

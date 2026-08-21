@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    strings_login.xml
+    Agregar estos valores a res/values/strings.xml
+-->
+<resources>
+    <string name="login_app_title">ERP Bodega</string>
+    <string name="login_app_subtitle">Ingreso de operario</string>
+    <string name="login_hint_username">Usuario (ID o RUT)</string>
+    <string name="login_hint_password">Contraseña</string>
+    <string name="login_hint_warehouse">Bodega</string>
+    <string name="login_button_submit">Ingresar</string>
+    <string name="login_offline_notice">Modo offline disponible</string>
+    <string name="app_logo_content_description">Logo de ERP Bodega</string>
+</resources>
