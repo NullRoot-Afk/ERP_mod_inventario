@@ -1,13 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    activity_login.xml
-    Pantalla de inicio de sesión para operarios de bodega.
-    Diseño: alto contraste, campos y botones grandes (mínimo 48-56dp de alto)
-    pensado para uso con guantes y poca luz.
+    activity_setup.xml
+    Pantalla que se ve UNA sola vez por dispositivo, antes de que exista
+    cualquier login. Mismo lenguaje visual que el login (fondo oscuro,
+    campos grandes), pero con un único campo.
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true"
@@ -17,10 +16,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingHorizontal="24dp"
-        android:paddingTop="48dp"
+        android:paddingTop="64dp"
         android:paddingBottom="24dp">
 
-        <!-- ===== Logo / branding ===== -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardLogo"
             android:layout_width="64dp"
@@ -42,11 +40,11 @@
         </com.google.android.material.card.MaterialCardView>
 
         <TextView
-            android:id="@+id/tvAppTitle"
+            android:id="@+id/tvSetupTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="@string/login_app_title"
+            android:text="@string/setup_title"
             android:textSize="20sp"
             android:textStyle="bold"
             android:textColor="@color/text_primary"
@@ -55,142 +53,93 @@
             app:layout_constraintEnd_toEndOf="parent" />
 
         <TextView
-            android:id="@+id/tvAppSubtitle"
-            android:layout_width="wrap_content"
+            android:id="@+id/tvSetupSubtitle"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="@string/login_app_subtitle"
+            android:gravity="center"
+            android:text="@string/setup_subtitle"
             android:textSize="14sp"
             android:textColor="@color/text_secondary"
-            app:layout_constraintTop_toBottomOf="@id/tvAppTitle"
+            app:layout_constraintTop_toBottomOf="@id/tvSetupTitle"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- ===== Campo Usuario ===== -->
         <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/tilUsername"
+            android:id="@+id/tilCompanyCode"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="32dp"
-            android:hint="@string/login_hint_username"
+            android:hint="@string/setup_hint_company_code"
             app:boxCornerRadiusTopStart="12dp"
             app:boxCornerRadiusTopEnd="12dp"
             app:boxCornerRadiusBottomStart="12dp"
             app:boxCornerRadiusBottomEnd="12dp"
-            app:startIconDrawable="@drawable/ic_person_24"
-            app:layout_constraintTop_toBottomOf="@id/tvAppSubtitle"
+            app:startIconDrawable="@drawable/ic_warehouse_24"
+            app:layout_constraintTop_toBottomOf="@id/tvSetupSubtitle"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etUsername"
+                android:id="@+id/etCompanyCode"
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
                 android:textSize="16sp"
-                android:inputType="text"
-                android:imeOptions="actionNext" />
+                android:inputType="textCapCharacters"
+                android:imeOptions="actionDone" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- ===== Campo Contraseña ===== -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/tilPassword"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:hint="@string/login_hint_password"
-            app:boxCornerRadiusTopStart="12dp"
-            app:boxCornerRadiusTopEnd="12dp"
-            app:boxCornerRadiusBottomStart="12dp"
-            app:boxCornerRadiusBottomEnd="12dp"
-            app:startIconDrawable="@drawable/ic_lock_24"
-            app:passwordToggleEnabled="true"
-            app:layout_constraintTop_toBottomOf="@id/tilUsername"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etPassword"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:textSize="16sp"
-                android:inputType="textPassword"
-                android:imeOptions="actionNext" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- ===== Botón Ingresar ===== -->
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnLogin"
+            android:id="@+id/btnConfirmSetup"
             android:layout_width="0dp"
             android:layout_height="56dp"
-            android:layout_marginTop="24dp"
-            android:text="@string/login_button_submit"
+            android:layout_marginTop="20dp"
+            android:text="@string/setup_button_confirm"
             android:textSize="16sp"
             android:textAllCaps="false"
             android:textColor="@color/on_accent"
             android:backgroundTint="@color/accent_fill"
             app:cornerRadius="12dp"
-            app:layout_constraintTop_toBottomOf="@id/tilPassword"
+            app:layout_constraintTop_toBottomOf="@id/tilCompanyCode"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- ===== Indicador de progreso (oculto por defecto) ===== -->
         <ProgressBar
-            android:id="@+id/progressLogin"
+            android:id="@+id/progressSetup"
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:layout_marginTop="16dp"
             android:visibility="gone"
-            tools:visibility="visible"
-            app:layout_constraintTop_toBottomOf="@id/btnLogin"
+            app:layout_constraintTop_toBottomOf="@id/btnConfirmSetup"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- ===== Mensaje de error (oculto por defecto) ===== -->
         <TextView
-            android:id="@+id/tvLoginError"
+            android:id="@+id/tvSetupError"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:textSize="13sp"
             android:textColor="@color/text_danger"
-            android:visibility="gone"
             android:gravity="center"
-            tools:visibility="visible"
-            tools:text="Usuario o contraseña incorrectos"
-            app:layout_constraintTop_toBottomOf="@id/btnLogin"
+            android:visibility="gone"
+            app:layout_constraintTop_toBottomOf="@id/progressSetup"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- ===== Aviso de modo offline ===== -->
-        <LinearLayout
-            android:id="@+id/layoutOfflineNotice"
-            android:layout_width="wrap_content"
+        <TextView
+            android:id="@+id/tvSetupNote"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:layout_marginBottom="16dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            app:layout_constraintTop_toBottomOf="@id/tvLoginError"
+            android:layout_marginTop="24dp"
+            android:gravity="center"
+            android:text="@string/setup_note"
+            android:textSize="12sp"
+            android:textColor="@color/text_muted"
+            app:layout_constraintTop_toBottomOf="@id/tvSetupError"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent">
-
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:src="@drawable/ic_wifi_off_24"
-                app:tint="@color/text_muted"
-                android:contentDescription="@null" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:text="@string/login_offline_notice"
-                android:textSize="12sp"
-                android:textColor="@color/text_muted" />
-        </LinearLayout>
+            app:layout_constraintEnd_toEndOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </ScrollView>

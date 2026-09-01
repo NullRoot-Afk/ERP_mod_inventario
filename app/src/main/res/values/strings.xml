@@ -13,4 +13,19 @@
     <string name="login_button_submit">Ingresar</string>
     <string name="login_offline_notice">Modo offline disponible</string>
     <string name="app_logo_content_description">Logo de ERP Bodega</string>
+    <string name="setup_title">Configuración inicial</string>
+    <string name="setup_subtitle">Ingresa el código de tu empresa para activar este dispositivo</string>
+    <string name="setup_hint_company_code">Código de empresa</string>
+    <string name="setup_button_confirm">Continuar</string>
+    <string name="setup_note">Este paso solo se realiza una vez por dispositivo</string>
+    <string name="home_notifications_content_description">Notificaciones</string>
+    <string name="home_scan_now">Escanear ahora</string>
+    <string name="home_greeting_format">Hola, %1$s</string>
+    <string name="home_sync_status_format">Sincronizado · %1$d tareas asignadas</string>
+    <string name="home_menu_recepcion">Recepción</string>
+    <string name="home_menu_picking">Picking</string>
+    <string name="home_menu_despacho">Despacho</string>
+    <string name="home_menu_conteo">Conteo</string>
+    <string name="home_menu_transferencias">Transferencias</string>
+    <string name="home_menu_ajustes">Ajustes</string>
 </resources>

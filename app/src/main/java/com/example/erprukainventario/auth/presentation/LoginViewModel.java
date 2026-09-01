@@ -1,15 +1,11 @@
 package com.example.erprukainventario.auth.presentation;
 
-import androidx.annotation.NonNull;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.example.erprukainventario.auth.data.AuthRepository;
 import com.example.erprukainventario.auth.domain.LoginResult;
-import com.example.erprukainventario.auth.domain.Warehouse;
-
-import java.util.List;
 
 import javax.inject.Inject;
 
@@ -24,7 +20,8 @@ public class LoginViewModel extends ViewModel {
     @Inject
     public LoginViewModel(AuthRepository authRepository) {
         this.authRepository = authRepository;
-        loadWarehouses();
+        // Ya no hay loadWarehouses(): la bodega viene resuelta del backend
+        // dentro de AuthUser, no se elige en esta pantalla.
     }
 
     public LiveData<LoginUiState> getUiState() {
@@ -36,43 +33,24 @@ public class LoginViewModel extends ViewModel {
         return value != null ? value : new LoginUiState();
     }
 
-    private void loadWarehouses() {
-        authRepository.getWarehouses(new com.example.erprukainventario.auth.data.RepositoryCallback<List<Warehouse>>() {
-            @Override
-            public void onResult(List<Warehouse> warehouses) {
-                uiState.setValue(current().withWarehouses(warehouses));
-            }
-        });
-    }
-
-    public void onUsernameChanged(@NonNull String value) {
+    public void onUsernameChanged(String value) {
         uiState.setValue(current().withUsername(value));
     }
 
-    public void onPasswordChanged(@NonNull String value) {
+    public void onPasswordChanged(String value) {
         uiState.setValue(current().withPassword(value));
-    }
-
-    public void onWarehouseSelected(@NonNull Warehouse warehouse) {
-        uiState.setValue(current().withSelectedWarehouse(warehouse));
     }
 
     public void onLoginClicked() {
         LoginUiState state = current();
-        if (state.selectedWarehouse == null) return;
-
         uiState.setValue(state.withLoading(true));
 
-        authRepository.login(state.username, state.password, state.selectedWarehouse.getId(),
-                new com.example.erprukainventario.auth.data.RepositoryCallback<LoginResult>() {
-                    @Override
-                    public void onResult(LoginResult result) {
-                        if (result.isSuccess()) {
-                            uiState.setValue(current().withLoggedInUser(result.getUser(), result.isFromCache()));
-                        } else {
-                            uiState.setValue(current().withError(result.getErrorMessage()));
-                        }
-                    }
-                });
+        authRepository.login(state.username, state.password, result -> {
+            if (result.isSuccess()) {
+                uiState.setValue(current().withLoggedInUser(result.getUser(), result.isFromCache()));
+            } else {
+                uiState.setValue(current().withError(result.getErrorMessage()));
+            }
+        });
     }
 }

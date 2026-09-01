@@ -2,23 +2,23 @@ package com.example.erprukainventario;
 
 import android.os.Bundle;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
+/**
+ * Placeholder temporal. Esta Activity se reemplazará por la pantalla
+ * "Home" real (menú principal con Recepción, Picking, Despacho, Conteo,
+ * Transferencias, Ajustes) cuando lleguemos a construirla.
+ *
+ * Se simplificó a propósito, quitando el código de "edge-to-edge insets"
+ * que traía la plantilla original de Android Studio, porque dependía de
+ * un id específico (R.id.main) en activity_main.xml que no necesitamos
+ * mientras esta pantalla sea solo un placeholder.
+ */
 public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
-        setContentView(R.layout.activity_login);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+        setContentView(R.layout.activity_main);
     }
 }

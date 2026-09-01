@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    item_home_menu_button.xml
+    Se usa 6 veces (Recepción, Picking, Despacho, Conteo, Transferencias,
+    Ajustes) vía <include>. Cada instancia en activity_home.xml define su
+    propio ancho/alto/margen; este archivo solo define el contenido interno.
+
+    El ícono y el texto se setean desde HomeActivity (findViewById dentro
+    de cada <include>), no hay seis layouts casi iguales con textos
+    hardcodeados distintos — uno solo, reutilizado y parametrizado en código.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_menu_button"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:clickable="true"
+    android:focusable="true">
+
+    <ImageView
+        android:id="@+id/ivIcon"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        app:tint="@color/accent_fill"
+        android:contentDescription="@null"
+        tools:src="@drawable/ic_box_24" />
+
+    <TextView
+        android:id="@+id/tvLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textColor="@color/text_primary"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        tools:text="Picking" />
+
+</LinearLayout>

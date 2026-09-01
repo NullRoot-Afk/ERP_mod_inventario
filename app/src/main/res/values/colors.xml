@@ -12,4 +12,6 @@
     <color name="text_secondary">#B0B0B0</color>
     <color name="text_muted">#7A7A7A</color>
     <color name="text_danger">#FF6B6B</color>
+    <color name="text_success">#4ADE80</color>
+    <color name="bg_success">#14301F</color>
 </resources>

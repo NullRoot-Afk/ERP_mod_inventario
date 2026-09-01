@@ -2,55 +2,28 @@ package com.example.erprukainventario.auth.data;
 
 import com.example.erprukainventario.auth.domain.AuthUser;
 import com.example.erprukainventario.auth.domain.UserRole;
-import com.example.erprukainventario.auth.domain.Warehouse;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.List;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-/**
- * Todos los métodos son SÍNCRONOS (bloqueantes) a propósito: Room en Java
- * no usa suspend/Flow, así que quien llame a esta clase debe hacerlo desde
- * un hilo de background (ver AuthRepositoryImpl, que usa un ExecutorService).
- */
 @Singleton
 public class AuthLocalDataSource {
 
     private final AuthDao authDao;
 
-    @Inject
+    @Inject//Constructor
     public AuthLocalDataSource(AuthDao authDao) {
         this.authDao = authDao;
     }
 
-    public void saveWarehouses(List<Warehouse> warehouses) {
-        List<CachedWarehouseEntity> entities = new ArrayList<>();
-        for (Warehouse w : warehouses) {
-            CachedWarehouseEntity entity = new CachedWarehouseEntity();
-            entity.id = w.getId();
-            entity.name = w.getName();
-            entities.add(entity);
-        }
-        authDao.upsertWarehouses(entities);
-    }
-
-    public List<Warehouse> getCachedWarehouses() {
-        List<Warehouse> result = new ArrayList<>();
-        for (CachedWarehouseEntity entity : authDao.getWarehouses()) {
-            result.add(new Warehouse(entity.id, entity.name));
-        }
-        return result;
-    }
-
     public void cacheCredentials(String username, String password, AuthUser user) {
         CachedCredentialEntity entity = new CachedCredentialEntity();
+        entity.userId = user.getId();          // clave primaria: ver nota en CachedCredentialEntity
         entity.username = username;
-        entity.passwordHash = hash(password); // TODO: reemplazar por BCrypt/Argon2 real
-        entity.userId = user.getId();
+        entity.passwordHash = hash(password);  // TODO: reemplazar por BCrypt/Argon2 real
         entity.fullName = user.getFullName();
         entity.role = user.getRole().name();
         entity.warehouseId = user.getWarehouseId();
@@ -58,8 +31,8 @@ public class AuthLocalDataSource {
         authDao.upsertCredential(entity);
     }
 
-    public AuthUser validateOffline(String username, String password, String warehouseId) {
-        CachedCredentialEntity cached = authDao.findCredential(username, warehouseId);
+    public AuthUser validateOffline(String username, String password) {
+        CachedCredentialEntity cached = authDao.findCredential(username);
         if (cached == null) return null;
         if (!cached.passwordHash.equals(hash(password))) return null;
 
