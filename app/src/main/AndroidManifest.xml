@@ -32,6 +32,9 @@
         <activity
             android:name=".home.presentation.HomeActivity"
             android:exported="false" />
+        <activity
+            android:name=".reception.presentation.ReceptionListActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

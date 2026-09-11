@@ -14,7 +14,7 @@ import dagger.hilt.components.SingletonComponent;
 
 @Module
 @InstallIn(SingletonComponent.class)
-public class Databasemodule {
+public class DatabaseModule {
 
     @Provides
     @Singleton
@@ -33,5 +33,11 @@ public class Databasemodule {
     @Singleton
     public AuthDao provideAuthDao(AppDatabase database) {
         return database.authDao();
+    }
+
+    @Provides
+    @Singleton
+    public com.example.erprukainventario.reception.data.ReceptionDao provideReceptionDao(AppDatabase database) {
+        return database.receptionDao();
     }
 }

@@ -69,4 +69,10 @@ public class NetworkModule {
     public AuthApi provideAuthApi(Retrofit retrofit) {
         return retrofit.create(AuthApi.class);
     }
+
+    @Provides
+    @javax.inject.Singleton
+    public com.example.erprukainventario.reception.data.ReceptionApi provideReceptionApi(Retrofit retrofit) {
+        return retrofit.create(com.example.erprukainventario.reception.data.ReceptionApi.class);
+    }
 }

@@ -28,4 +28,42 @@
     <string name="home_menu_conteo">Conteo</string>
     <string name="home_menu_transferencias">Transferencias</string>
     <string name="home_menu_ajustes">Ajustes</string>
+    <string name="cd_back">Volver</string>
+
+    <string name="tab_pending">Pendientes</string>
+    <string name="tab_all">Todos</string>
+    <string name="tab_assigned_to_me">Asignados a mí</string>
+    <string name="tab_ready_to_dispatch">Listos para despachar</string>
+    <string name="tab_history">Historial</string>
+    <string name="tab_to_send">Por enviar</string>
+    <string name="tab_to_receive">Por recibir</string>
+
+    <string name="reception_title">Recepción</string>
+    <string name="reception_search_hint">Buscar OC o proveedor</string>
+    <string name="reception_without_po">Recepción sin orden de compra</string>
+
+    <string name="picking_title">Picking</string>
+
+    <string name="dispatch_title">Despacho</string>
+
+    <string name="count_title">Conteo de inventario</string>
+    <string name="count_section_assigned_today">Tareas asignadas hoy</string>
+    <string name="count_cyclic_zone_a">Conteo cíclico · Zona A</string>
+    <string name="count_zone_a_progress">18 ubicaciones · 0/18 contadas</string>
+    <string name="count_cyclic_zone_c">Conteo cíclico · Zona C</string>
+    <string name="count_zone_c_progress">12 ubicaciones · 7/12 contadas</string>
+    <string name="count_section_general">Conteo general</string>
+    <string name="count_general_warehouse">Bodega central</string>
+    <string name="count_general_not_started">Programado · Aún no iniciado</string>
+    <string name="count_free_by_location">Conteo libre por ubicación</string>
+
+    <string name="transfer_title">Transferencias</string>
+    <string name="transfer_new">Nueva transferencia</string>
+
+    <string name="adjustment_title">Ajustes de inventario</string>
+    <string name="adjustment_section_mine">Mis ajustes</string>
+    <string name="adjustment_new_manual">Nuevo ajuste manual</string>
+
+    <string name="reception_empty_state">No hay órdenes de compra pendientes</string>
+
 </resources>

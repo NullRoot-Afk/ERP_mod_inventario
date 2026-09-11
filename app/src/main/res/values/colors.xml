@@ -14,4 +14,14 @@
     <color name="text_danger">#FF6B6B</color>
     <color name="text_success">#4ADE80</color>
     <color name="bg_success">#14301F</color>
+    <color name="text_warning">#FBBF24</color>
+    <color name="bg_warning">#332B12</color>
+    <color name="border_warning">#5C4A1A</color>
+    <color name="bg_danger">#331616</color>
+    <color name="border_danger">#5C2626</color>
+    <color name="border_success">#1F4A2E</color>
+    <color name="text_accent">#5B8DEF</color>
+    <color name="bg_accent_muted">#16244A</color>
+    <color name="border_accent">#2F4E8F</color>
+    <color name="surface_0">#101010</color>
 </resources>

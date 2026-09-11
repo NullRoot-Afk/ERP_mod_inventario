@@ -1,5 +1,6 @@
 package com.example.erprukainventario.home.presentation;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Toast;
 
@@ -9,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider;
 import com.example.erprukainventario.R;
 import com.example.erprukainventario.databinding.ActivityHomeBinding;
 import com.example.erprukainventario.databinding.ItemHomeMenuButtonBinding;
+import com.example.erprukainventario.reception.presentation.ReceptionListActivity;
 
 import dagger.hilt.android.AndroidEntryPoint;
 
@@ -39,7 +41,7 @@ public class HomeActivity extends AppCompatActivity {
      */
     private void setupMenuButtons() {
         configureMenuButton(binding.btnRecepcion, R.drawable.ic_cart_24, getString(R.string.home_menu_recepcion),
-                () -> Toast.makeText(this, "Recepción — pantalla pendiente de construir", Toast.LENGTH_SHORT).show());
+                () -> startActivity(new Intent(this, ReceptionListActivity.class)));
 
         configureMenuButton(binding.btnPicking, R.drawable.ic_box_24, getString(R.string.home_menu_picking),
                 () -> Toast.makeText(this, "Picking — pantalla pendiente de construir", Toast.LENGTH_SHORT).show());
