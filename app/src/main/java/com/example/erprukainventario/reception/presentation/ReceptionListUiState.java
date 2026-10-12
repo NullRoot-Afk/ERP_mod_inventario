@@ -9,21 +9,23 @@ public class ReceptionListUiState {
 
     public final List<PurchaseOrder> orders;
     public final boolean isLoading;
+    public final boolean showOnlyPending;
 
     public ReceptionListUiState() {
-        this(Collections.emptyList(), true);
+        this(Collections.emptyList(), true, true);
     }
 
-    private ReceptionListUiState(List<PurchaseOrder> orders, boolean isLoading) {
+    private ReceptionListUiState(List<PurchaseOrder> orders, boolean isLoading, boolean showOnlyPending) {
         this.orders = orders;
         this.isLoading = isLoading;
+        this.showOnlyPending = showOnlyPending;
     }
 
     public ReceptionListUiState withLoading() {
-        return new ReceptionListUiState(orders, true);
+        return new ReceptionListUiState(orders, true, showOnlyPending);
     }
 
-    public ReceptionListUiState withOrders(List<PurchaseOrder> orders) {
-        return new ReceptionListUiState(orders, false);
+    public ReceptionListUiState withOrdersAndTab(List<PurchaseOrder> orders, boolean showOnlyPending) {
+        return new ReceptionListUiState(orders, false, showOnlyPending);
     }
 }

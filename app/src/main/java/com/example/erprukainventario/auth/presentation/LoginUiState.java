@@ -4,7 +4,7 @@ import com.example.erprukainventario.auth.domain.AuthUser;
 
 public class LoginUiState {
 
-    public final String username;
+    public final String email;
     public final String password;
     public final boolean isLoading;
     public final String errorMessage;
@@ -15,9 +15,9 @@ public class LoginUiState {
         this("", "", false, null, null, false);
     }
 
-    private LoginUiState(String username, String password, boolean isLoading, String errorMessage,
+    private LoginUiState(String email, String password, boolean isLoading, String errorMessage,
                          AuthUser loggedInUser, boolean loggedInFromCache) {
-        this.username = username;
+        this.email = email;
         this.password = password;
         this.isLoading = isLoading;
         this.errorMessage = errorMessage;
@@ -26,26 +26,26 @@ public class LoginUiState {
     }
 
     public boolean isSubmitEnabled() {
-        return !username.trim().isEmpty() && !password.trim().isEmpty() && !isLoading;
+        return !email.trim().isEmpty() && !password.trim().isEmpty() && !isLoading;
     }
 
-    public LoginUiState withUsername(String value) {
+    public LoginUiState withEmail(String value) {
         return new LoginUiState(value, password, isLoading, null, loggedInUser, loggedInFromCache);
     }
 
     public LoginUiState withPassword(String value) {
-        return new LoginUiState(username, value, isLoading, null, loggedInUser, loggedInFromCache);
+        return new LoginUiState(email, value, isLoading, null, loggedInUser, loggedInFromCache);
     }
 
     public LoginUiState withLoading(boolean value) {
-        return new LoginUiState(username, password, value, null, loggedInUser, loggedInFromCache);
+        return new LoginUiState(email, password, value, null, loggedInUser, loggedInFromCache);
     }
 
     public LoginUiState withError(String message) {
-        return new LoginUiState(username, password, false, message, null, false);
+        return new LoginUiState(email, password, false, message, null, false);
     }
 
     public LoginUiState withLoggedInUser(AuthUser user, boolean fromCache) {
-        return new LoginUiState(username, password, false, null, user, fromCache);
+        return new LoginUiState(email, password, false, null, user, fromCache);
     }
 }

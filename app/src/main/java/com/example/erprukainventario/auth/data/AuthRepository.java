@@ -10,6 +10,9 @@ public interface AuthRepository {
 
     void login(String username, String password, RepositoryCallback<LoginResult> callback);
 
+    /** Envía un correo electrónico de recuperación de contraseña con Firebase (devuelve null si tuvo éxito, o mensaje de error si falló). */
+    void sendPasswordResetEmail(String email, RepositoryCallback<String> callback);
+
     /** Resultado de validar un código de empresa contra el backend. */
     class CompanyValidationResult {
         private final boolean success;

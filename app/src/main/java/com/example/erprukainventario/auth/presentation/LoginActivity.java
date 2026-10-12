@@ -11,13 +11,20 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.example.erprukainventario.R;
+import com.example.erprukainventario.auth.data.TenantConfigLocalDataSource;
+import com.example.erprukainventario.auth.domain.Company;
 import com.example.erprukainventario.databinding.ActivityLoginBinding;
 import com.example.erprukainventario.home.presentation.HomeActivity;
+
+import javax.inject.Inject;
 
 import dagger.hilt.android.AndroidEntryPoint;
 
 @AndroidEntryPoint
 public class LoginActivity extends AppCompatActivity {
+
+    @Inject
+    TenantConfigLocalDataSource tenantConfig;
 
     private ActivityLoginBinding binding;
     private LoginViewModel viewModel;
@@ -30,14 +37,32 @@ public class LoginActivity extends AppCompatActivity {
 
         viewModel = new ViewModelProvider(this).get(LoginViewModel.class);
 
+        displayConfiguredCompany();
         setupListeners();
         observeUiState();
     }
 
+    private void displayConfiguredCompany() {
+        Company company = tenantConfig.getConfiguredCompany();
+        if (company != null) {
+            String companyName = (company.getName() != null && !company.getName().isEmpty()) ? company.getName() : company.getId();
+            binding.tvConfiguredCompany.setText(getString(R.string.login_configured_company_format, companyName));
+        } else {
+            binding.tvConfiguredCompany.setText(getString(R.string.login_configured_company_format, "Sin configurar"));
+        }
+    }
+
     private void setupListeners() {
-        binding.etUsername.addTextChangedListener(simpleWatcher(viewModel::onUsernameChanged));
+        binding.etEmail.addTextChangedListener(simpleWatcher(viewModel::onEmailChanged));
         binding.etPassword.addTextChangedListener(simpleWatcher(viewModel::onPasswordChanged));
         binding.btnLogin.setOnClickListener(v -> viewModel.onLoginClicked());
+        binding.btnForgotPassword.setOnClickListener(v -> viewModel.onForgotPasswordClicked());
+
+        binding.btnChangeCompany.setOnClickListener(v -> {
+            tenantConfig.clear();
+            startActivity(new Intent(this, SetupActivity.class));
+            finish();
+        });
     }
 
     private void observeUiState() {

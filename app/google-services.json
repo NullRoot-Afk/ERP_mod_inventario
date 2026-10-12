@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "626535122166",
+    "project_id": "proyecto-inventario-25dbd",
+    "storage_bucket": "proyecto-inventario-25dbd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:626535122166:android:791b4b752111259bec18d7",
+        "android_client_info": {
+          "package_name": "com.example.erprukainventario"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC_Z7k4o4I9J0tHLroKaOUkwmvnrR-eWA4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

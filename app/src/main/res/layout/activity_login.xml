@@ -66,29 +66,61 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- ===== Campo Usuario ===== -->
+        <!-- ===== Empresa Configurada ===== -->
+        <LinearLayout
+            android:id="@+id/layoutCompanyInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            app:layout_constraintTop_toBottomOf="@id/tvAppSubtitle"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <TextView
+                android:id="@+id/tvConfiguredCompany"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textColor="@color/text_accent"
+                android:textStyle="bold"
+                tools:text="Empresa: ZENITH" />
+
+            <TextView
+                android:id="@+id/btnChangeCompany"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:textSize="13sp"
+                android:textColor="@color/text_secondary"
+                android:padding="4dp"
+                android:text="@string/login_change_company" />
+        </LinearLayout>
+
+        <!-- ===== Campo Correo ===== -->
         <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/tilUsername"
+            android:id="@+id/tilEmail"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:hint="@string/login_hint_username"
+            android:layout_marginTop="24dp"
+            android:hint="@string/login_hint_email"
             app:boxCornerRadiusTopStart="12dp"
             app:boxCornerRadiusTopEnd="12dp"
             app:boxCornerRadiusBottomStart="12dp"
             app:boxCornerRadiusBottomEnd="12dp"
             app:startIconDrawable="@drawable/ic_person_24"
-            app:layout_constraintTop_toBottomOf="@id/tvAppSubtitle"
+            app:layout_constraintTop_toBottomOf="@id/layoutCompanyInfo"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etUsername"
+                android:id="@+id/etEmail"
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
                 android:textSize="16sp"
-                android:inputType="text"
+                android:inputType="textEmailAddress"
                 android:imeOptions="actionNext" />
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -106,7 +138,7 @@
             app:boxCornerRadiusBottomEnd="12dp"
             app:startIconDrawable="@drawable/ic_lock_24"
             app:passwordToggleEnabled="true"
-            app:layout_constraintTop_toBottomOf="@id/tilUsername"
+            app:layout_constraintTop_toBottomOf="@id/tilEmail"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
@@ -119,19 +151,32 @@
                 android:imeOptions="actionNext" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- ===== ¿Olvidaste tu contraseña? ===== -->
+        <TextView
+            android:id="@+id/btnForgotPassword"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/login_forgot_password"
+            android:textSize="14sp"
+            android:textColor="@color/accent_fill"
+            android:padding="8dp"
+            app:layout_constraintTop_toBottomOf="@id/tilPassword"
+            app:layout_constraintEnd_toEndOf="parent" />
+
         <!-- ===== Botón Ingresar ===== -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnLogin"
             android:layout_width="0dp"
             android:layout_height="56dp"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="16dp"
             android:text="@string/login_button_submit"
             android:textSize="16sp"
             android:textAllCaps="false"
             android:textColor="@color/on_accent"
             android:backgroundTint="@color/accent_fill"
             app:cornerRadius="12dp"
-            app:layout_constraintTop_toBottomOf="@id/tilPassword"
+            app:layout_constraintTop_toBottomOf="@id/btnForgotPassword"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 

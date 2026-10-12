@@ -5,7 +5,6 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.example.erprukainventario.auth.data.AuthRepository;
-import com.example.erprukainventario.auth.domain.LoginResult;
 
 import javax.inject.Inject;
 
@@ -20,8 +19,6 @@ public class LoginViewModel extends ViewModel {
     @Inject
     public LoginViewModel(AuthRepository authRepository) {
         this.authRepository = authRepository;
-        // Ya no hay loadWarehouses(): la bodega viene resuelta del backend
-        // dentro de AuthUser, no se elige en esta pantalla.
     }
 
     public LiveData<LoginUiState> getUiState() {
@@ -33,19 +30,36 @@ public class LoginViewModel extends ViewModel {
         return value != null ? value : new LoginUiState();
     }
 
-    public void onUsernameChanged(String value) {
-        uiState.setValue(current().withUsername(value));
+    public void onEmailChanged(String value) {
+        uiState.setValue(current().withEmail(value));
     }
 
     public void onPasswordChanged(String value) {
         uiState.setValue(current().withPassword(value));
     }
 
+    public void onForgotPasswordClicked() {
+        LoginUiState state = current();
+        if (state.email == null || state.email.trim().isEmpty()) {
+            uiState.setValue(state.withError("Ingresa tu correo en el campo superior para enviarte el enlace de recuperación."));
+            return;
+        }
+
+        uiState.setValue(state.withLoading(true));
+        authRepository.sendPasswordResetEmail(state.email.trim(), errorMessage -> {
+            if (errorMessage == null) {
+                uiState.setValue(current().withError("Te hemos enviado un correo con el enlace para restablecer tu contraseña. Revisa también la carpeta de Spam."));
+            } else {
+                uiState.setValue(current().withError(errorMessage));
+            }
+        });
+    }
+
     public void onLoginClicked() {
         LoginUiState state = current();
         uiState.setValue(state.withLoading(true));
 
-        authRepository.login(state.username, state.password, result -> {
+        authRepository.login(state.email, state.password, result -> {
             if (result.isSuccess()) {
                 uiState.setValue(current().withLoggedInUser(result.getUser(), result.isFromCache()));
             } else {

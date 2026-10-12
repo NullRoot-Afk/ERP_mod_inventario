@@ -7,8 +7,12 @@
     <string name="app_name">ERP Ruka Inventario</string>
     <string name="login_app_title">ERP Bodega</string>
     <string name="login_app_subtitle">Ingreso de operario</string>
-    <string name="login_hint_username">Usuario (ID o RUT)</string>
+    <string name="login_hint_username">Correo electrónico</string>
+    <string name="login_hint_email">Correo electrónico</string>
     <string name="login_hint_password">Contraseña</string>
+    <string name="login_forgot_password">¿Olvidaste tu contraseña?</string>
+    <string name="login_change_company">(Cambiar)</string>
+    <string name="login_configured_company_format">Empresa: %1$s</string>
     <string name="login_hint_warehouse">Bodega</string>
     <string name="login_button_submit">Ingresar</string>
     <string name="login_offline_notice">Modo offline disponible</string>
@@ -39,6 +43,15 @@
     <string name="tab_to_receive">Por recibir</string>
 
     <string name="reception_title">Recepción</string>
+    <string name="reception_detail_title">Detalle de Recepción</string>
+    <string name="reception_products_header">Productos a Recibir</string>
+    <string name="reception_button_start">Comenzar recepción</string>
+    <string name="reception_button_finish">Finalizar Recepción</string>
+    <string name="reception_process_title">Proceso de Recepción</string>
+    <string name="reception_progress_title">Avance de Recepción</string>
+    <string name="reception_units_format">%1$d / %2$d unidades</string>
+    <string name="reception_minus">-</string>
+    <string name="reception_plus">+</string>
     <string name="reception_search_hint">Buscar OC o proveedor</string>
     <string name="reception_without_po">Recepción sin orden de compra</string>
 
