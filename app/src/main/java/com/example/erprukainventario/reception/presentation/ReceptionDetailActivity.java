@@ -53,8 +53,8 @@ public class ReceptionDetailActivity extends AppCompatActivity {
         binding.btnStartReception.setOnClickListener(v -> {
             PurchaseOrderDetail detail = viewModel.getUiState().getValue() != null ? viewModel.getUiState().getValue().orderDetail : null;
             if (detail != null) {
-                Intent intent = new Intent(this, ReceptionProcessActivity.class);
-                intent.putExtra(ReceptionProcessActivity.EXTRA_ORDER_ID, detail.getId());
+                Intent intent = new Intent(this, ReceptionScanningActivity.class);
+                intent.putExtra(ReceptionScanningActivity.EXTRA_ORDER_ID, detail.getId());
                 startActivity(intent);
             }
         });

@@ -7,14 +7,16 @@ import com.example.erprukainventario.auth.domain.AuthUser;
 import com.example.erprukainventario.auth.domain.Company;
 import com.example.erprukainventario.auth.domain.LoginResult;
 import com.example.erprukainventario.auth.domain.UserRole;
+import com.google.firebase.FirebaseNetworkException;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FirebaseFirestoreException;
 
-import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -24,32 +26,38 @@ import javax.inject.Singleton;
 @Singleton
 public class AuthRepositoryImpl implements AuthRepository {
 
-    private final AuthApi authApi;
+    // Ajusta estos nombres a los reales de tu Firestore (sensibles a mayúsculas).
+    private static final String COMPANIES = "COMPANIES";
+    private static final String USERS = "USERS";
+
     private final AuthLocalDataSource localDataSource;
     private final TenantConfigLocalDataSource tenantConfig;
     private final SessionManager sessionManager;
     private final FirebaseAuth firebaseAuth;
     private final FirebaseFirestore firestore;
 
+    // Room no permite consultas en el hilo principal.
     private final ExecutorService dbExecutor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @Inject
     public AuthRepositoryImpl(
-            AuthApi authApi,
             AuthLocalDataSource localDataSource,
             TenantConfigLocalDataSource tenantConfig,
             SessionManager sessionManager,
             FirebaseAuth firebaseAuth,
             FirebaseFirestore firestore
     ) {
-        this.authApi = authApi;
         this.localDataSource = localDataSource;
         this.tenantConfig = tenantConfig;
         this.sessionManager = sessionManager;
         this.firebaseAuth = firebaseAuth;
         this.firestore = firestore;
     }
+
+    // ------------------------------------------------------------------
+    // Configuración de empresa
+    // ------------------------------------------------------------------
 
     @Override
     public void validateAndSaveCompany(String companyCode, RepositoryCallback<CompanyValidationResult> callback) {
@@ -58,96 +66,44 @@ public class AuthRepositoryImpl implements AuthRepository {
             return;
         }
 
-        String targetCode = companyCode.trim();
-        String[] possibleCollections = new String[]{"COMPANIES", "Companies", "companies", "COMPANY", "Company", "company", "EMPRESAS", "Empresas", "empresas"};
+        final String target = companyCode.trim();
+        CollectionReference companies = firestore.collection(COMPANIES);
 
-        checkNextCollection(possibleCollections, 0, targetCode, callback);
-    }
-
-    private void checkNextCollection(
-            String[] collections,
-            int index,
-            String targetCode,
-            RepositoryCallback<CompanyValidationResult> callback
-    ) {
-        if (index >= collections.length) {
-            callback.onResult(CompanyValidationResult.error(
-                    "No se encontró la empresa '" + targetCode + "' en Firestore. Verifica que exista la colección 'companies' con el documento '" + targetCode + "'."
-            ));
-            return;
-        }
-
-        String collectionName = collections[index];
-
-        // 1. Probar consultar el documento directo por ID
-        firestore.collection(collectionName).document(targetCode).get()
+        // 1. Por ID de documento; 2. por campo "code". Sin descargar la colección completa.
+        companies.document(target).get()
                 .addOnSuccessListener(doc -> {
                     if (doc.exists()) {
-                        saveCompanyAndReturn(targetCode, doc, callback);
-                    } else {
-                        // Probar en mayúsculas
-                        firestore.collection(collectionName).document(targetCode.toUpperCase()).get()
-                                .addOnSuccessListener(docUpper -> {
-                                    if (docUpper.exists()) {
-                                        saveCompanyAndReturn(targetCode.toUpperCase(), docUpper, callback);
-                                    } else {
-                                        searchInCollectionDocs(collectionName, targetCode, collections, index, callback);
-                                    }
-                                })
-                                .addOnFailureListener(e -> searchInCollectionDocs(collectionName, targetCode, collections, index, callback));
+                        saveCompanyAndReturn(doc, callback);
+                        return;
                     }
+                    companies.whereEqualTo("code", target).limit(1).get()
+                            .addOnSuccessListener(snap -> {
+                                if (!snap.isEmpty()) {
+                                    saveCompanyAndReturn(snap.getDocuments().get(0), callback);
+                                } else {
+                                    callback.onResult(CompanyValidationResult.error(
+                                            "No se encontró la empresa '" + target + "'."));
+                                }
+                            })
+                            .addOnFailureListener(e -> callback.onResult(
+                                    CompanyValidationResult.error(firestoreErrorMessage(e))));
                 })
-                .addOnFailureListener(e -> searchInCollectionDocs(collectionName, targetCode, collections, index, callback));
+                .addOnFailureListener(e -> callback.onResult(
+                        CompanyValidationResult.error(firestoreErrorMessage(e))));
     }
 
-    private void searchInCollectionDocs(
-            String collectionName,
-            String targetCode,
-            String[] collections,
-            int index,
-            RepositoryCallback<CompanyValidationResult> callback
-    ) {
-        firestore.collection(collectionName).get()
-                .addOnSuccessListener(querySnapshot -> {
-                    if (querySnapshot != null && !querySnapshot.isEmpty()) {
-                        for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
-                            String docId = doc.getId();
-                            String fieldCode = doc.getString("code");
-                            String fieldId = doc.getString("id");
-                            String fieldName = doc.getString("name");
-
-                            boolean isMatch = docId.equalsIgnoreCase(targetCode)
-                                    || (fieldCode != null && fieldCode.equalsIgnoreCase(targetCode))
-                                    || (fieldId != null && fieldId.equalsIgnoreCase(targetCode))
-                                    || (fieldName != null && fieldName.equalsIgnoreCase(targetCode));
-
-                            if (isMatch) {
-                                saveCompanyAndReturn(docId, doc, callback);
-                                return;
-                            }
-                        }
-                    }
-                    checkNextCollection(collections, index + 1, targetCode, callback);
-                })
-                .addOnFailureListener(e -> {
-                    String msg = e.getLocalizedMessage();
-                    if (msg != null && msg.contains("PERMISSION_DENIED")) {
-                        callback.onResult(CompanyValidationResult.error(
-                                "Permiso denegado en Firestore (PERMISSION_DENIED). Ve a Firebase Console -> Firestore -> Reglas y permite la lectura: allow read, write: if true;"
-                        ));
-                    } else {
-                        checkNextCollection(collections, index + 1, targetCode, callback);
-                    }
-                });
-    }
-
-    private void saveCompanyAndReturn(String companyId, DocumentSnapshot doc, RepositoryCallback<CompanyValidationResult> callback) {
+    private void saveCompanyAndReturn(DocumentSnapshot doc, RepositoryCallback<CompanyValidationResult> callback) {
+        String companyId = doc.getId();
         String docName = doc.getString("name");
         String name = (docName != null && !docName.isEmpty()) ? docName : companyId;
         Company company = new Company(companyId, name);
         tenantConfig.saveCompany(company);
         callback.onResult(CompanyValidationResult.success(company));
     }
+
+    // ------------------------------------------------------------------
+    // Login
+    // ------------------------------------------------------------------
 
     @Override
     public void login(String email, String password, RepositoryCallback<LoginResult> callback) {
@@ -156,65 +112,52 @@ public class AuthRepositoryImpl implements AuthRepository {
             callback.onResult(LoginResult.error("El dispositivo no tiene una empresa configurada."));
             return;
         }
+        if (email == null || email.trim().isEmpty() || password == null || password.isEmpty()) {
+            callback.onResult(LoginResult.error("Ingresa tu correo y contraseña."));
+            return;
+        }
 
-        // 1. Autenticar con Firebase Auth
-        firebaseAuth.signInWithEmailAndPassword(email.trim(), password)
+        final String cleanEmail = email.trim();
+
+        firebaseAuth.signInWithEmailAndPassword(cleanEmail, password)
                 .addOnSuccessListener(authResult -> {
                     FirebaseUser firebaseUser = authResult.getUser();
                     if (firebaseUser == null) {
                         callback.onResult(LoginResult.error("Error al obtener usuario autenticado."));
                         return;
                     }
-
-                    String uid = firebaseUser.getUid();
-                    String[] userCollections = new String[]{"users", "USERS", "Users", "usuarios", "USUARIOS"};
-                    fetchUserFromCollections(userCollections, 0, uid, firebaseUser, email, password, company, callback);
+                    findUserDoc(firebaseUser.getUid(), cleanEmail, userDoc ->
+                            onUserDocLoaded(userDoc, firebaseUser, cleanEmail, password, company, callback));
                 })
-                .addOnFailureListener(e -> attemptOfflineLogin(email, password, e, callback));
+                .addOnFailureListener(e -> {
+                    // Solo se permite login offline si el fallo fue de red.
+                    // Si fue contraseña incorrecta, no se debe aceptar una contraseña vieja del caché.
+                    if (e instanceof FirebaseNetworkException) {
+                        attemptOfflineLogin(cleanEmail, password, callback);
+                    } else {
+                        callback.onResult(LoginResult.error(mapAuthError(e)));
+                    }
+                });
     }
 
-    private void fetchUserFromCollections(
-            String[] collections,
-            int index,
-            String uid,
-            FirebaseUser firebaseUser,
-            String email,
-            String password,
-            Company company,
-            RepositoryCallback<LoginResult> callback
-    ) {
-        if (index >= collections.length) {
-            firebaseAuth.signOut();
-            callback.onResult(LoginResult.error(
-                    "El usuario (" + email + ") no existe en la base de datos (colección 'users' o 'USERS'). Registra su documento en Firestore."
-            ));
-            return;
-        }
-
-        String collectionName = collections[index];
-        firestore.collection(collectionName).document(uid).get()
+    /** Busca el documento del usuario por UID y, si no existe, por email. */
+    private void findUserDoc(String uid, String email, RepositoryCallback<DocumentSnapshot> callback) {
+        CollectionReference users = firestore.collection(USERS);
+        users.document(uid).get()
                 .addOnSuccessListener(doc -> {
                     if (doc.exists()) {
-                        processUserDataAndVerifyCompany(doc, firebaseUser, email, password, company, callback);
-                    } else {
-                        firestore.collection(collectionName)
-                                .whereEqualTo("email", email.trim())
-                                .get()
-                                .addOnSuccessListener(querySnapshot -> {
-                                    if (querySnapshot != null && !querySnapshot.isEmpty()) {
-                                        DocumentSnapshot userDoc = querySnapshot.getDocuments().get(0);
-                                        processUserDataAndVerifyCompany(userDoc, firebaseUser, email, password, company, callback);
-                                    } else {
-                                        fetchUserFromCollections(collections, index + 1, uid, firebaseUser, email, password, company, callback);
-                                    }
-                                })
-                                .addOnFailureListener(e -> fetchUserFromCollections(collections, index + 1, uid, firebaseUser, email, password, company, callback));
+                        callback.onResult(doc);
+                        return;
                     }
+                    users.whereEqualTo("email", email).limit(1).get()
+                            .addOnSuccessListener(snap ->
+                                    callback.onResult(snap.isEmpty() ? null : snap.getDocuments().get(0)))
+                            .addOnFailureListener(e -> callback.onResult(null));
                 })
-                .addOnFailureListener(e -> fetchUserFromCollections(collections, index + 1, uid, firebaseUser, email, password, company, callback));
+                .addOnFailureListener(e -> callback.onResult(null));
     }
 
-    private void processUserDataAndVerifyCompany(
+    private void onUserDocLoaded(
             DocumentSnapshot doc,
             FirebaseUser firebaseUser,
             String email,
@@ -222,41 +165,33 @@ public class AuthRepositoryImpl implements AuthRepository {
             Company configuredCompany,
             RepositoryCallback<LoginResult> callback
     ) {
-        String userCompanyId = doc.getString("companyId");
-
-        if (userCompanyId == null || !userCompanyId.trim().equalsIgnoreCase(configuredCompany.getId().trim())) {
+        if (doc == null) {
             firebaseAuth.signOut();
             callback.onResult(LoginResult.error(
-                    "Acceso denegado: En la base de datos tu usuario pertenece a la empresa '"
-                            + (userCompanyId != null ? userCompanyId : "sin empresa")
-                            + "', pero este dispositivo fue configurado con la empresa '" + configuredCompany.getId() + "'."
-            ));
+                    "El usuario (" + email + ") no existe en la colección '" + USERS + "' de Firestore."));
             return;
         }
 
-        String docFullName = doc.getString("fullName");
-        String docName = doc.getString("name");
-        String resolvedName = (docFullName != null && !docFullName.isEmpty()) ? docFullName : docName;
-        String fullName = (resolvedName != null && !resolvedName.isEmpty())
-                ? resolvedName
-                : (firebaseUser.getDisplayName() != null ? firebaseUser.getDisplayName() : email);
-
-        UserRole role;
-        String roleStr = doc.getString("role");
-        if (roleStr != null) {
-            try {
-                role = UserRole.valueOf(roleStr.toUpperCase().trim());
-            } catch (IllegalArgumentException e) {
-                role = UserRole.OPERARIO;
-            }
-        } else {
-            role = UserRole.OPERARIO;
+        String userCompanyId = doc.getString("companyId");
+        if (userCompanyId == null
+                || !userCompanyId.trim().equalsIgnoreCase(configuredCompany.getId().trim())) {
+            firebaseAuth.signOut();
+            callback.onResult(LoginResult.error(
+                    "Acceso denegado: tu usuario pertenece a la empresa '"
+                            + (userCompanyId != null ? userCompanyId : "sin empresa")
+                            + "', pero este dispositivo está configurado con '"
+                            + configuredCompany.getId() + "'."));
+            return;
         }
 
-        String warehouseId = doc.getString("warehouseId");
-        String warehouseName = doc.getString("warehouseName");
+        AuthUser authUser = new AuthUser(
+                firebaseUser.getUid(),
+                resolveFullName(doc, firebaseUser, email),
+                resolveRole(doc),
+                doc.getString("warehouseId"),
+                doc.getString("warehouseName")
+        );
 
-        AuthUser authUser = new AuthUser(firebaseUser.getUid(), fullName, role, warehouseId, warehouseName);
         dbExecutor.execute(() -> {
             localDataSource.cacheCredentials(email, password, authUser);
             sessionManager.setCurrentUser(authUser);
@@ -264,12 +199,26 @@ public class AuthRepositoryImpl implements AuthRepository {
         });
     }
 
-    private void attemptOfflineLogin(
-            String email,
-            String password,
-            Exception firebaseException,
-            RepositoryCallback<LoginResult> callback
-    ) {
+    private String resolveFullName(DocumentSnapshot doc, FirebaseUser firebaseUser, String email) {
+        String fullName = doc.getString("fullName");
+        if (fullName != null && !fullName.isEmpty()) return fullName;
+        String name = doc.getString("name");
+        if (name != null && !name.isEmpty()) return name;
+        String display = firebaseUser.getDisplayName();
+        return display != null ? display : email;
+    }
+
+    private UserRole resolveRole(DocumentSnapshot doc) {
+        String roleStr = doc.getString("role");
+        if (roleStr == null) return UserRole.OPERARIO;
+        try {
+            return UserRole.valueOf(roleStr.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return UserRole.OPERARIO;
+        }
+    }
+
+    private void attemptOfflineLogin(String email, String password, RepositoryCallback<LoginResult> callback) {
         dbExecutor.execute(() -> {
             AuthUser cachedUser = localDataSource.validateOffline(email, password);
             mainHandler.post(() -> {
@@ -277,12 +226,16 @@ public class AuthRepositoryImpl implements AuthRepository {
                     sessionManager.setCurrentUser(cachedUser);
                     callback.onResult(LoginResult.success(cachedUser, true));
                 } else {
-                    String errorMsg = mapFirebaseError(firebaseException);
-                    callback.onResult(LoginResult.error(errorMsg));
+                    callback.onResult(LoginResult.error(
+                            "Sin conexión a internet y no hay sesión previa guardada en este dispositivo."));
                 }
             });
         });
     }
+
+    // ------------------------------------------------------------------
+    // Recuperación de contraseña
+    // ------------------------------------------------------------------
 
     @Override
     public void sendPasswordResetEmail(String email, RepositoryCallback<String> callback) {
@@ -291,25 +244,42 @@ public class AuthRepositoryImpl implements AuthRepository {
             return;
         }
 
-        firebaseAuth.sendPasswordResetEmail(email.trim())
-                .addOnSuccessListener(aVoid -> callback.onResult(null))
+        String cleanEmail = email.trim();
+        firebaseAuth.sendPasswordResetEmail(cleanEmail)
+                .addOnSuccessListener(v -> callback.onResult(null))
                 .addOnFailureListener(e -> {
                     if (e instanceof FirebaseAuthInvalidUserException) {
-                        callback.onResult("El correo " + email + " no está registrado en Firebase Auth.");
+                        callback.onResult("El correo " + cleanEmail + " no está registrado.");
                     } else {
-                        callback.onResult(e.getLocalizedMessage() != null ? e.getLocalizedMessage() : "Error al enviar correo de recuperación.");
+                        callback.onResult(e.getLocalizedMessage() != null
+                                ? e.getLocalizedMessage()
+                                : "Error al enviar correo de recuperación.");
                     }
                 });
     }
 
-    private String mapFirebaseError(Exception e) {
-        if (e instanceof FirebaseAuthInvalidUserException) {
-            return "No existe una cuenta registrada con este correo electrónico.";
-        } else if (e instanceof FirebaseAuthInvalidCredentialsException) {
-            return "Contraseña incorrecta. Verifica tus datos.";
-        } else if (e instanceof IOException || (e != null && e.getMessage() != null && e.getMessage().contains("network"))) {
-            return "Sin conexión a internet y no hay sesión previa guardada en este dispositivo.";
+    // ------------------------------------------------------------------
+    // Mensajes de error
+    // ------------------------------------------------------------------
+
+    private String mapAuthError(Exception e) {
+        if (e instanceof FirebaseAuthInvalidUserException
+                || e instanceof FirebaseAuthInvalidCredentialsException) {
+            // Firebase moderno no distingue "correo inexistente" de "contraseña incorrecta".
+            return "Correo o contraseña incorrectos.";
         }
-        return e != null ? e.getLocalizedMessage() : "Error de autenticación. Intenta nuevamente.";
+        return e.getLocalizedMessage() != null
+                ? e.getLocalizedMessage()
+                : "Error de autenticación. Intenta nuevamente.";
+    }
+
+    private String firestoreErrorMessage(Exception e) {
+        if (e instanceof FirebaseFirestoreException
+                && ((FirebaseFirestoreException) e).getCode()
+                == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+            return "Permiso denegado en Firestore. Revisa las reglas de seguridad de la colección '"
+                    + COMPANIES + "'.";
+        }
+        return "No se pudo validar la empresa. Verifica tu conexión e intenta de nuevo.";
     }
 }

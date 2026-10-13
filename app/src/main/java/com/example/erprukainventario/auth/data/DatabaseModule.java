@@ -20,24 +20,16 @@ public class DatabaseModule {
     @Singleton
     public AppDatabase provideAppDatabase(@ApplicationContext Context context) {
         return Room.databaseBuilder(context, AppDatabase.class, "erp_bodega.db")
-                // TODO: cuando agreguemos más entidades/versiones más adelante,
-                // acá van las Migrations correspondientes. Por ahora, en
-                // desarrollo, fallbackToDestructiveMigration() evita crashear
-                // por cambios de esquema sin migración — NO usar en producción
-                // sin revisar qué implica perder los datos locales del operario.
+                // TODO: antes de producción reemplazar por Migrations reales:
+                // fallbackToDestructiveMigration() borra los datos locales
+                // (credenciales cacheadas) en cada cambio de versión.
                 .fallbackToDestructiveMigration()
                 .build();
     }
 
+    // Faltaba este binding: era la causa del error [Dagger/MissingBinding] AuthDao.
     @Provides
-    @Singleton
-    public AuthDao provideAuthDao(AppDatabase database) {
-        return database.authDao();
-    }
-
-    @Provides
-    @Singleton
-    public com.example.erprukainventario.reception.data.ReceptionDao provideReceptionDao(AppDatabase database) {
-        return database.receptionDao();
+    public AuthDao provideAuthDao(AppDatabase db) {
+        return db.authDao();
     }
 }

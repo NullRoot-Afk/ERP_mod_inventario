@@ -3,30 +3,22 @@ package com.example.erprukainventario.auth.data;
 import androidx.room.Database;
 import androidx.room.RoomDatabase;
 
-import com.example.erprukainventario.reception.data.PurchaseOrderEntity;
-import com.example.erprukainventario.reception.data.ReceptionDao;
-
 /**
- * Base de datos Room de toda la app. Cada feature (auth, reception,
- * picking, etc.) agrega sus entidades y expone su propio DAO aquí —
- * Room recomienda UNA sola base de datos por app, no una por feature.
+ * Base de datos Room de la app. Hoy solo guarda las credenciales
+ * cacheadas para el login offline. Las órdenes de recepción ya no se
+ * cachean aquí: Firestore mantiene su propio caché offline en disco.
  *
- * version subió de 1 a 2 al agregar PurchaseOrderEntity. Como el proyecto
- * usa fallbackToDestructiveMigration() en DatabaseModule (aceptable en
- * desarrollo), no hace falta escribir una Migration todavía — pero eso
- * borra los datos locales existentes en cada cambio de versión, así que
- * antes de producción esto debe reemplazarse por Migrations reales.
+ * Si cambias entidades, sube 'version'. Mientras DatabaseModule use
+ * fallbackToDestructiveMigration() no necesitas escribir Migrations,
+ * pero se pierden los datos locales en cada cambio de versión.
  */
 @Database(
         entities = {
-                CachedCredentialEntity.class,
-                PurchaseOrderEntity.class
+                CachedCredentialEntity.class
         },
-        version = 2,
+        version = 3,
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
     public abstract AuthDao authDao();
-
-    public abstract ReceptionDao receptionDao();
 }

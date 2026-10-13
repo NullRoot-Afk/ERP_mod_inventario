@@ -35,14 +35,15 @@ public class ReceptionListViewModel extends ViewModel {
         return uiState;
     }
 
+    // ReceptionViewModel.loadOrders()
     public void loadOrders() {
-        ReceptionListUiState current = uiState.getValue();
-        if (current != null) {
-            uiState.setValue(current.withLoading());
-        }
+        android.util.Log.d("RX", "1. loadOrders llamado");
+
         repository.getOrders(orders -> {
+            android.util.Log.d("RX", "2. callback recibido, órdenes: " + (orders != null ? orders.size() : "null"));
             this.masterOrders = orders != null ? orders : new ArrayList<>();
             applyFilters();
+            android.util.Log.d("RX", "3. applyFilters terminó");
         });
     }
 

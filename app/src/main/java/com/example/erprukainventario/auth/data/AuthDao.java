@@ -6,8 +6,6 @@ import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
 
-import java.util.List;
-
 @Dao//Marca eL inicio de la implementacion de la interfaz que se implementara automaticamente en tiempo de compilacion
 public interface AuthDao {
     //Inserta las credenciales a la tabla local, si las credenciales ya esta cacheadas se reemplazara la antigua por la recien

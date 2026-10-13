@@ -76,7 +76,13 @@
     <string name="adjustment_title">Ajustes de inventario</string>
     <string name="adjustment_section_mine">Mis ajustes</string>
     <string name="adjustment_new_manual">Nuevo ajuste manual</string>
-
+    <string name="reception_manual_entry">Ingresar código manualmente</string>
+    <string name="reception_manual_hint">Código de barras o SKU</string>
+    <string name="reception_manual_search">Buscar</string>
     <string name="reception_empty_state">No hay órdenes de compra pendientes</string>
-
+    <string name="reception_scan_title">Escaneo de recepción</string>
+    <string name="reception_scan_instruction">Escanea el código de barras del producto</string>
+    <string name="reception_tab_scanned">Escaneados</string>
+    <string name="reception_input_quantity_label">Cantidad recibida</string>
+    <string name="reception_add_button">Agregar</string>
 </resources>

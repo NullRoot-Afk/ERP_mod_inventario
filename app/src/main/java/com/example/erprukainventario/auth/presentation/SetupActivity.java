@@ -9,9 +9,9 @@ import android.view.View;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
 
-import com.example.erprukainventario.R;
-import com.example.erprukainventario.auth.data.TenantConfigLocalDataSource;
 import com.example.erprukainventario.databinding.ActivitySetupBinding;
+import com.example.erprukainventario.auth.data.TenantConfigLocalDataSource;
+
 
 import javax.inject.Inject;
 
