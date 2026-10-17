@@ -7,6 +7,7 @@ import android.text.TextWatcher;
 import android.view.View;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -36,6 +37,13 @@ public class ReceptionListActivity extends AppCompatActivity {
         observeUiState();
     }
 
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        // Al volver del formulario o del detalle (crear, editar, eliminar) la lista se refresca.
+        viewModel.loadOrders();
+    }
+
     private void setupList() {
         adapter = new ReceptionOrderAdapter(order -> {
             Intent intent = new Intent(this, ReceptionDetailActivity.class);
@@ -60,9 +68,27 @@ public class ReceptionListActivity extends AppCompatActivity {
         binding.tabPending.setOnClickListener(v -> viewModel.onTabSelected(true));
         binding.tabAll.setOnClickListener(v -> viewModel.onTabSelected(false));
 
+        // Crear una orden nueva (formulario).
         binding.btnReceiveWithoutPO.setOnClickListener(v ->
-                Toast.makeText(this, "Recepción sin OC — función en desarrollo", Toast.LENGTH_SHORT).show()
-        );
+                startActivity(new Intent(this, ReceptionFormActivity.class)));
+
+        // Toque largo en el título: carga los datos de prueba desde la app (solo desarrollo).
+        binding.tvReceptionTitle.setOnLongClickListener(v -> {
+            confirmSeed();
+            return true;
+        });
+    }
+
+    private void confirmSeed() {
+        new AlertDialog.Builder(this)
+                .setTitle("Cargar datos de prueba")
+                .setMessage("Se crearán 5 órdenes con 3 productos cada una para tu empresa.")
+                .setPositiveButton("Cargar", (d, w) -> viewModel.seedDemoData(ok ->
+                        Toast.makeText(this,
+                                ok ? "Datos de prueba cargados." : "No se pudieron cargar los datos.",
+                                Toast.LENGTH_SHORT).show()))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private void observeUiState() {
@@ -72,7 +98,6 @@ public class ReceptionListActivity extends AppCompatActivity {
             binding.tvEmpty.setVisibility(!state.isLoading && state.orders.isEmpty() ? View.VISIBLE : View.GONE);
             adapter.submitList(state.orders);
 
-            // Actualizar estilo visual de las pestañas
             if (state.showOnlyPending) {
                 binding.tabPending.setBackgroundResource(R.drawable.bg_tab_selected);
                 binding.tabPending.setTextColor(getColor(R.color.on_accent));

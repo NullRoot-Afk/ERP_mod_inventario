@@ -12,98 +12,155 @@
         android:layout_height="wrap_content"
         android:padding="20dp">
 
-        <!-- ===== Header: saludo + campana + avatar ===== -->
-        <TextView
-            android:id="@+id/tvGreeting"
-            android:layout_width="0dp"
+        <!-- ===== Card Superior de Usuario y Marca ===== -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardHeader"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="@color/text_primary"
-            tools:text="Hola, Pedro"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/surface_input"
+            app:strokeWidth="1dp"
+            app:strokeColor="@color/input_border"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/ivBell" />
-
-        <TextView
-            android:id="@+id/tvRoleWarehouse"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:textSize="13sp"
-            android:textColor="@color/text_secondary"
-            tools:text="Operario · Bodega central"
-            app:layout_constraintTop_toBottomOf="@id/tvGreeting"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/ivBell" />
-
-        <ImageView
-            android:id="@+id/ivBell"
-            android:layout_width="22dp"
-            android:layout_height="22dp"
-            android:src="@drawable/ic_bell_24"
-            app:tint="@color/text_primary"
-            android:contentDescription="@string/home_notifications_content_description"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="@id/tvRoleWarehouse"
-            app:layout_constraintEnd_toStartOf="@id/tvAvatar" />
-
-        <TextView
-            android:id="@+id/tvAvatar"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginStart="10dp"
-            android:background="@drawable/bg_avatar_circle"
-            android:gravity="center"
-            android:textColor="@color/on_accent"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            tools:text="PS"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="@id/tvRoleWarehouse"
-            app:layout_constraintEnd_toEndOf="parent" />
-
-        <!-- ===== Banner de sincronización ===== -->
-        <LinearLayout
-            android:id="@+id/layoutSyncBanner"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_sync_banner"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="8dp"
-            app:layout_constraintTop_toBottomOf="@id/tvRoleWarehouse"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:src="@drawable/ic_check_circle_24"
-                app:tint="@color/text_success"
-                android:contentDescription="@null" />
-
-            <TextView
-                android:id="@+id/tvSyncStatus"
-                android:layout_width="wrap_content"
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:textSize="13sp"
-                android:textColor="@color/text_success"
-                tools:text="Sincronizado · 3 tareas asignadas" />
-        </LinearLayout>
+                android:padding="16dp">
 
-        <!-- ===== Grilla de accesos (2 columnas x 3 filas) ===== -->
-        <androidx.gridlayout.widget.GridLayout
-            android:id="@+id/gridMenu"
-            android:layout_width="0dp"
+                <ImageView
+                    android:id="@+id/imgBrandLogo"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/ic_zenith_logo"
+                    android:contentDescription="@string/app_logo_content_description"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent" />
+
+                <TextView
+                    android:id="@+id/tvGreeting"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:textSize="17sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    tools:text="Hola, Luis Escare"
+                    app:layout_constraintTop_toTopOf="@id/imgBrandLogo"
+                    app:layout_constraintStart_toEndOf="@id/imgBrandLogo"
+                    app:layout_constraintEnd_toStartOf="@id/ivBell" />
+
+                <TextView
+                    android:id="@+id/tvRoleWarehouse"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary"
+                    tools:text="Operario · ZENITH Bodega Central"
+                    app:layout_constraintTop_toBottomOf="@id/tvGreeting"
+                    app:layout_constraintStart_toStartOf="@id/tvGreeting"
+                    app:layout_constraintEnd_toStartOf="@id/ivBell" />
+
+                <ImageView
+                    android:id="@+id/ivBell"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="8dp"
+                    android:src="@drawable/ic_bell_24"
+                    app:tint="@color/text_primary"
+                    android:contentDescription="@string/home_notifications_content_description"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toStartOf="@id/tvAvatar" />
+
+                <TextView
+                    android:id="@+id/tvAvatar"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="@drawable/bg_avatar_circle"
+                    android:gravity="center"
+                    android:textColor="@color/on_accent"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    tools:text="LE"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ===== Card Indicador de Estado Cloud ===== -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardSyncBanner"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/surface_input"
+            app:strokeWidth="1dp"
+            app:strokeColor="@color/border_accent"
+            app:layout_constraintTop_toBottomOf="@id/cardHeader"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="14dp">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_check_circle_24"
+                    app:tint="@color/text_accent"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/tvSyncStatus"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:textSize="13sp"
+                    android:textColor="@color/text_primary"
+                    tools:text="ZENITH Cloud Sincronizado · 3 tareas en turno" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ===== Encabezado de Módulos ===== -->
+        <TextView
+            android:id="@+id/tvSectionTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/home_operations_title"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:layout_constraintTop_toBottomOf="@id/cardSyncBanner"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <!-- ===== Grilla de accesos ===== -->
+        <androidx.gridlayout.widget.GridLayout
+            android:id="@+id/gridMenu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             app:columnCount="2"
             app:rowCount="3"
-            app:layout_constraintTop_toBottomOf="@id/layoutSyncBanner"
+            app:layout_constraintTop_toBottomOf="@id/tvSectionTitle"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
@@ -111,7 +168,7 @@
                 android:id="@+id/btnRecepcion"
                 layout="@layout/item_home_menu_button"
                 android:layout_width="0dp"
-                android:layout_height="110dp"
+                android:layout_height="130dp"
                 android:layout_marginEnd="6dp"
                 android:layout_marginBottom="12dp"
                 app:layout_columnWeight="1"
@@ -121,7 +178,7 @@
                 android:id="@+id/btnPicking"
                 layout="@layout/item_home_menu_button"
                 android:layout_width="0dp"
-                android:layout_height="110dp"
+                android:layout_height="130dp"
                 android:layout_marginStart="6dp"
                 android:layout_marginBottom="12dp"
                 app:layout_columnWeight="1"
@@ -131,7 +188,7 @@
                 android:id="@+id/btnDespacho"
                 layout="@layout/item_home_menu_button"
                 android:layout_width="0dp"
-                android:layout_height="110dp"
+                android:layout_height="130dp"
                 android:layout_marginEnd="6dp"
                 android:layout_marginBottom="12dp"
                 app:layout_columnWeight="1"
@@ -141,7 +198,7 @@
                 android:id="@+id/btnConteo"
                 layout="@layout/item_home_menu_button"
                 android:layout_width="0dp"
-                android:layout_height="110dp"
+                android:layout_height="130dp"
                 android:layout_marginStart="6dp"
                 android:layout_marginBottom="12dp"
                 app:layout_columnWeight="1"
@@ -151,8 +208,9 @@
                 android:id="@+id/btnTransferencias"
                 layout="@layout/item_home_menu_button"
                 android:layout_width="0dp"
-                android:layout_height="110dp"
+                android:layout_height="130dp"
                 android:layout_marginEnd="6dp"
+                android:layout_marginBottom="12dp"
                 app:layout_columnWeight="1"
                 app:layout_gravity="fill_horizontal" />
 
@@ -160,8 +218,9 @@
                 android:id="@+id/btnAjustes"
                 layout="@layout/item_home_menu_button"
                 android:layout_width="0dp"
-                android:layout_height="110dp"
+                android:layout_height="130dp"
                 android:layout_marginStart="6dp"
+                android:layout_marginBottom="12dp"
                 app:layout_columnWeight="1"
                 app:layout_gravity="fill_horizontal" />
 
@@ -170,12 +229,13 @@
         <!-- ===== Botón Escanear ahora ===== -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnScanNow"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="8dp"
             android:text="@string/home_scan_now"
             android:textAllCaps="false"
             android:textSize="16sp"
+            android:textStyle="bold"
             android:textColor="@color/on_accent"
             android:backgroundTint="@color/accent_fill"
             app:icon="@drawable/ic_scan_24"

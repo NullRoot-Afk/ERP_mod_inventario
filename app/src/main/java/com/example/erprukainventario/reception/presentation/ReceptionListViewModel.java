@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
+import com.example.erprukainventario.auth.data.RepositoryCallback;
 import com.example.erprukainventario.reception.data.ReceptionRepository;
 import com.example.erprukainventario.reception.domain.PurchaseOrder;
 import com.example.erprukainventario.reception.domain.PurchaseOrderStatus;
@@ -35,15 +36,18 @@ public class ReceptionListViewModel extends ViewModel {
         return uiState;
     }
 
-    // ReceptionViewModel.loadOrders()
     public void loadOrders() {
-        android.util.Log.d("RX", "1. loadOrders llamado");
-
         repository.getOrders(orders -> {
-            android.util.Log.d("RX", "2. callback recibido, órdenes: " + (orders != null ? orders.size() : "null"));
             this.masterOrders = orders != null ? orders : new ArrayList<>();
             applyFilters();
-            android.util.Log.d("RX", "3. applyFilters terminó");
+        });
+    }
+
+    /** Carga las 5 órdenes de prueba desde la app y refresca la lista. */
+    public void seedDemoData(RepositoryCallback<Boolean> callback) {
+        repository.seedDemoData(ok -> {
+            if (ok) loadOrders();
+            callback.onResult(ok);
         });
     }
 
@@ -60,12 +64,10 @@ public class ReceptionListViewModel extends ViewModel {
     private void applyFilters() {
         List<PurchaseOrder> filtered = new ArrayList<>();
         for (PurchaseOrder order : masterOrders) {
-            // Tab Filter: Pending vs All
             if (showOnlyPending && order.getStatus() == PurchaseOrderStatus.COMPLETA) {
                 continue;
             }
 
-            // Search Filter: Code or Supplier
             if (!searchQuery.isEmpty()) {
                 boolean matchesCode = order.getCode() != null && order.getCode().toLowerCase().contains(searchQuery);
                 boolean matchesSupplier = order.getSupplierName() != null && order.getSupplierName().toLowerCase().contains(searchQuery);
@@ -78,10 +80,7 @@ public class ReceptionListViewModel extends ViewModel {
         }
 
         ReceptionListUiState current = uiState.getValue();
-        if (current != null) {
-            uiState.setValue(current.withOrdersAndTab(filtered, showOnlyPending));
-        } else {
-            uiState.setValue(new ReceptionListUiState().withOrdersAndTab(filtered, showOnlyPending));
-        }
+        uiState.setValue((current != null ? current : new ReceptionListUiState())
+                .withOrdersAndTab(filtered, showOnlyPending));
     }
 }

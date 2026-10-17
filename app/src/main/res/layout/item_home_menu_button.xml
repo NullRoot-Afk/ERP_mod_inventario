@@ -1,41 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    item_home_menu_button.xml
-    Se usa 6 veces (Recepción, Picking, Despacho, Conteo, Transferencias,
-    Ajustes) vía <include>. Cada instancia en activity_home.xml define su
-    propio ancho/alto/margen; este archivo solo define el contenido interno.
-
-    El ícono y el texto se setean desde HomeActivity (findViewById dentro
-    de cada <include>), no hay seis layouts casi iguales con textos
-    hardcodeados distintos — uno solo, reutilizado y parametrizado en código.
--->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_menu_button"
-    android:orientation="vertical"
-    android:gravity="center"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:cardBackgroundColor="@color/surface_input"
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/input_border"
     android:clickable="true"
     android:focusable="true">
 
-    <ImageView
-        android:id="@+id/ivIcon"
-        android:layout_width="28dp"
-        android:layout_height="28dp"
-        app:tint="@color/accent_fill"
-        android:contentDescription="@null"
-        tools:src="@drawable/ic_box_24" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:padding="16dp">
 
-    <TextView
-        android:id="@+id/tvLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textColor="@color/text_primary"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        tools:text="Picking" />
+        <ImageView
+            android:id="@+id/ivIcon"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            app:tint="@color/accent_fill"
+            android:contentDescription="@null"
+            tools:src="@drawable/ic_cart_24" />
 
-</LinearLayout>
+        <TextView
+            android:id="@+id/tvLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            tools:text="Recepción" />
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

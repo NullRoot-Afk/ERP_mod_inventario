@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+
+    <!-- Fondo Blanco del Logo -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8,4 L56,4 A4,4 0 0,1 60,8 L60,56 A4,4 0 0,1 56,60 L8,60 A4,4 0 0,1 4,56 L4,8 A4,4 0 0,1 8,4 Z" />
+
+    <!-- Esquina superior derecha Naranja Cénit -->
+    <path
+        android:fillColor="#F5A623"
+        android:pathData="M40,4 L56,4 A4,4 0 0,1 60,8 L60,24 Z" />
+
+    <!-- Letra Z en Azul Zenith -->
+    <path
+        android:fillColor="#0B1028"
+        android:pathData="M18,18 L46,18 L46,26 L29,40 L46,40 L46,48 L18,48 L18,40 L35,26 L18,26 Z" />
+
+</vector>

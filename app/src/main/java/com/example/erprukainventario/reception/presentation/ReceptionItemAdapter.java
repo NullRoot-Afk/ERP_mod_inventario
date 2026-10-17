@@ -14,7 +14,17 @@ import java.util.List;
 
 public class ReceptionItemAdapter extends RecyclerView.Adapter<ReceptionItemAdapter.ViewHolder> {
 
+    public interface OnItemActionListener {
+        void onEdit(PurchaseOrderItem item);    // toque corto
+        void onDelete(PurchaseOrderItem item);  // toque largo
+    }
+
     private List<PurchaseOrderItem> items = new ArrayList<>();
+    private final OnItemActionListener listener;
+
+    public ReceptionItemAdapter(OnItemActionListener listener) {
+        this.listener = listener;
+    }
 
     public void submitList(List<PurchaseOrderItem> newItems) {
         this.items = newItems != null ? newItems : new ArrayList<>();
@@ -31,7 +41,7 @@ public class ReceptionItemAdapter extends RecyclerView.Adapter<ReceptionItemAdap
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        holder.bind(items.get(position));
+        holder.bind(items.get(position), listener);
     }
 
     @Override
@@ -47,10 +57,15 @@ public class ReceptionItemAdapter extends RecyclerView.Adapter<ReceptionItemAdap
             this.binding = binding;
         }
 
-        void bind(PurchaseOrderItem item) {
+        void bind(PurchaseOrderItem item, OnItemActionListener listener) {
             binding.tvProductName.setText(item.getProductName());
             binding.tvProductMeta.setText("SKU: " + item.getProductCode() + " · EAN: " + item.getBarcode());
             binding.tvQuantity.setText(item.getReceivedQuantity() + " / " + item.getOrderedQuantity() + " un.");
+            binding.getRoot().setOnClickListener(v -> listener.onEdit(item));
+            binding.getRoot().setOnLongClickListener(v -> {
+                listener.onDelete(item);
+                return true;
+            });
         }
     }
 }

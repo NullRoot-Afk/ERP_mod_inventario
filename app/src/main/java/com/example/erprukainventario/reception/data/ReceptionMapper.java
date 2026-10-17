@@ -10,7 +10,8 @@ import java.util.List;
 
 /**
  * Único lugar que conoce los nombres de campo de Firestore.
- * Tolera alias (supplierName/supplier, etaLabel/eta, etc.).
+ * Tolera alias (supplierName/supplier, etaLabel/eta, etc.) y campos
+ * ausentes: así los documentos antiguos (sin "notes") siguen leyéndose.
  */
 final class ReceptionMapper {
 
@@ -30,7 +31,8 @@ final class ReceptionMapper {
 
     static PurchaseOrderDetail toDetail(DocumentSnapshot doc, List<PurchaseOrderItem> items) {
         return new PurchaseOrderDetail(
-                doc.getId(), code(doc), supplier(doc), status(doc), eta(doc), items
+                doc.getId(), code(doc), supplier(doc), status(doc), eta(doc), items,
+                str(doc, "", "notes") // campo v2: valor por defecto para documentos antiguos
         );
     }
 
@@ -70,9 +72,7 @@ final class ReceptionMapper {
         }
     }
 
-    /**
-     * Primer campo no vacío entre los alias; si ninguno, el valor por defecto.
-     */
+    /** Primer campo no vacío entre los alias; si ninguno, el valor por defecto. */
     private static String str(DocumentSnapshot d, String fallback, String... fields) {
         for (String f : fields) {
             String v = d.getString(f);
@@ -95,7 +95,6 @@ final class ReceptionMapper {
                 }
             }
         }
-        return 0; // <- esta línea es la que falta
+        return 0;
     }
-    }
-
+}

@@ -52,7 +52,7 @@
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
+        android:layout_marginBottom="12dp"
         app:cardCornerRadius="16dp"
         app:cardElevation="0dp"
         app:cardBackgroundColor="@color/surface_input"
@@ -92,19 +92,88 @@
                 android:textColor="@color/text_muted"
                 tools:text="Llegada estimada hoy" />
 
+            <TextView
+                android:id="@+id/tvNotes"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                tools:text="Sin notas" />
+
         </LinearLayout>
 
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- Encabezado de Productos -->
+    <!-- ===== Acciones sobre la orden ===== -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnEditOrder"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:text="Editar orden"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            app:cornerRadius="12dp"
+            app:strokeColor="@color/input_border" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnDeleteOrder"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:text="Eliminar orden"
+            android:textAllCaps="false"
+            android:textColor="@color/text_danger"
+            app:cornerRadius="12dp"
+            app:strokeColor="@color/border_danger" />
+    </LinearLayout>
+
+    <!-- Encabezado de Productos + agregar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="6dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/reception_products_header"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnAddItem"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="+ Agregar producto"
+            android:textColor="@color/text_accent"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/reception_products_header"
-        android:textColor="@color/text_primary"
-        android:textSize="15sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="10dp" />
+        android:layout_marginBottom="8dp"
+        android:text="Toca un producto para modificarlo; mantén presionado para eliminarlo."
+        android:textColor="@color/text_muted"
+        android:textSize="12sp" />
 
     <!-- ===== Lista de Productos ===== -->
     <androidx.recyclerview.widget.RecyclerView

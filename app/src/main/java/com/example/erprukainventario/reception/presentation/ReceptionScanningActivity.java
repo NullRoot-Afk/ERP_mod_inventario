@@ -296,9 +296,9 @@ public class ReceptionScanningActivity extends AppCompatActivity {
         isScanningPaused = true;
 
         DialogQuantityInputBinding dialogBinding = DialogQuantityInputBinding.inflate(getLayoutInflater());
-        dialogBinding.tvDialogTitle.setText("Producto Detectado");
+        dialogBinding.tvDialogTitle.setText(getString(R.string.reception_product_detected));
         dialogBinding.tvDialogSubtitle.setText(item.getProductName());
-        dialogBinding.tvDialogMeta.setText("Recibido: " + item.getReceivedQuantity() + " / " + item.getOrderedQuantity() + " un. · SKU: " + item.getProductCode());
+        dialogBinding.tvDialogMeta.setText(getString(R.string.reception_meta_format, item.getReceivedQuantity(), item.getOrderedQuantity(), item.getProductCode()));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(dialogBinding.getRoot())
@@ -308,27 +308,36 @@ public class ReceptionScanningActivity extends AppCompatActivity {
 
         dialogBinding.btnDialogMinus.setOnClickListener(v -> {
             try {
-                int current = Integer.parseInt(dialogBinding.etQuantity.getText().toString().trim());
-                if (current > 1) {
-                    dialogBinding.etQuantity.setText(String.valueOf(current - 1));
+                CharSequence text = dialogBinding.etQuantity.getText();
+                if (text != null) {
+                    int current = Integer.parseInt(text.toString().trim());
+                    if (current > 1) {
+                        dialogBinding.etQuantity.setText(String.valueOf(current - 1));
+                    }
                 }
             } catch (Exception ignored) {}
         });
 
         dialogBinding.btnDialogPlus.setOnClickListener(v -> {
             try {
-                int current = Integer.parseInt(dialogBinding.etQuantity.getText().toString().trim());
-                dialogBinding.etQuantity.setText(String.valueOf(current + 1));
+                CharSequence text = dialogBinding.etQuantity.getText();
+                if (text != null) {
+                    int current = Integer.parseInt(text.toString().trim());
+                    dialogBinding.etQuantity.setText(String.valueOf(current + 1));
+                }
             } catch (Exception ignored) {}
         });
 
         dialogBinding.btnConfirmQuantity.setOnClickListener(v -> {
             try {
-                int qtyToAdd = Integer.parseInt(dialogBinding.etQuantity.getText().toString().trim());
-                if (qtyToAdd > 0) {
-                    viewModel.addQuantityToItem(item.getId(), qtyToAdd);
-                    Toast.makeText(this, "+" + qtyToAdd + " un. sumadas a " + item.getProductName(), Toast.LENGTH_SHORT).show();
-                    dialog.dismiss();
+                CharSequence text = dialogBinding.etQuantity.getText();
+                if (text != null) {
+                    int qtyToAdd = Integer.parseInt(text.toString().trim());
+                    if (qtyToAdd > 0) {
+                        viewModel.addQuantityToItem(item.getId(), qtyToAdd);
+                        Toast.makeText(this, "+" + qtyToAdd + " un. sumadas a " + item.getProductName(), Toast.LENGTH_SHORT).show();
+                        dialog.dismiss();
+                    }
                 }
             } catch (Exception e) {
                 Toast.makeText(this, "Ingresa una cantidad válida.", Toast.LENGTH_SHORT).show();

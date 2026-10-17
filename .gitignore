@@ -1,26 +1,34 @@
+# Firebase / Google Services configuration
+google-services.json
+app/google-services.json
+
 # Android Studio / IntelliJ
 *.iml
 .idea/
+*.iws
+*.ipr
 
-# Gradle
+# Gradle & Build
 .gradle/
 build/
+app/build/
 
-# Local config (rutas SDK, posibles keys)
+# Local config (rutas SDK, claves locales)
 local.properties
 
-# macOS
+# OS generated files
 .DS_Store
+Thumbs.db
 
-# Native build
+# Native build artifacts
 .externalNativeBuild/
 .cxx/
 captures/
 
-# Outputs de build
+# Build outputs
 *.apk
 *.aab
 
-# Firmas de release (NUNCA subir)
+# Firmas de release / Keystores
 *.jks
 *.keystore
