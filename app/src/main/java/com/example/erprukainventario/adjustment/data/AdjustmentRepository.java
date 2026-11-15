@@ -3,6 +3,7 @@ package com.example.erprukainventario.adjustment.data;
 import com.example.erprukainventario.adjustment.domain.Adjustment;
 import com.example.erprukainventario.adjustment.domain.AdjustmentReason;
 import com.example.erprukainventario.auth.data.RepositoryCallback;
+import com.example.erprukainventario.core.domain.Lot;
 import com.example.erprukainventario.core.domain.OperationResult;
 import com.example.erprukainventario.core.domain.Product;
 
@@ -13,8 +14,12 @@ public interface AdjustmentRepository {
     /** Ajustes de la bodega del usuario, del más reciente al más antiguo. */
     void getAdjustments(RepositoryCallback<List<Adjustment>> callback);
 
-    /** Crea una solicitud PENDIENTE (todavía no mueve stock). */
-    void create(Product product, int signedQuantity, AdjustmentReason reason, String notes,
+    /**
+     * Crea una solicitud PENDIENTE (todavía no mueve stock).
+     *
+     * @param lot lote afectado, o null (al aprobar una rebaja se descuenta por FEFO).
+     */
+    void create(Product product, Lot lot, int signedQuantity, AdjustmentReason reason, String notes,
                 RepositoryCallback<Boolean> callback);
 
     /** Solo supervisor/jefe: aplica el ajuste al stock y deja el movimiento firmado. */

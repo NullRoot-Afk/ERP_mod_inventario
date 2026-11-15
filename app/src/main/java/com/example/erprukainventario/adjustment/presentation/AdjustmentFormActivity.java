@@ -15,9 +15,15 @@ import androidx.lifecycle.ViewModelProvider;
 
 import com.example.erprukainventario.R;
 import com.example.erprukainventario.adjustment.domain.AdjustmentReason;
+import com.example.erprukainventario.core.domain.Lot;
 import com.example.erprukainventario.core.domain.Product;
 import com.example.erprukainventario.databinding.ActivityAdjustmentFormBinding;
 import com.example.erprukainventario.lookup.presentation.ProductLookupActivity;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 import dagger.hilt.android.AndroidEntryPoint;
 
@@ -30,6 +36,7 @@ public class AdjustmentFormActivity extends AppCompatActivity {
     private ActivityAdjustmentFormBinding binding;
     private AdjustmentFormViewModel viewModel;
     private AdjustmentReason selectedReason;
+    private Lot selectedLot;
 
     private final ActivityResultLauncher<Intent> scanLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -89,11 +96,12 @@ public class AdjustmentFormActivity extends AppCompatActivity {
         });
         binding.btnSave.setOnClickListener(v -> viewModel.submit(selectedReason,
                 binding.toggleDirection.getCheckedButtonId() == R.id.btnOut,
-                text(binding.etQuantity), text(binding.etNotes)));
+                text(binding.etQuantity), text(binding.etNotes), selectedLot));
     }
 
     private void observe() {
         viewModel.getProduct().observe(this, this::showProduct);
+        viewModel.getLots().observe(this, this::showLots);
         viewModel.isBusy().observe(this, busy -> {
             binding.progressBar.setVisibility(busy ? View.VISIBLE : View.GONE);
             binding.btnSave.setEnabled(!busy);
@@ -119,6 +127,28 @@ public class AdjustmentFormActivity extends AppCompatActivity {
         binding.tvProductInfo.setText(getString(R.string.adjustment_product_format,
                 p.getName(), p.getCode(), p.getLocation(), p.stockIn(viewModel.warehouseId())));
         binding.tvProductInfo.setTextColor(getColor(R.color.text_primary));
+    }
+
+    /** Lote afectado (guía §10): opcional; sin indicarlo, la rebaja sale por FEFO al aprobar. */
+    private void showLots(List<Lot> lots) {
+        selectedLot = null;
+        boolean any = lots != null && !lots.isEmpty();
+        binding.tilLot.setVisibility(any ? View.VISIBLE : View.GONE);
+        if (!any) return;
+
+        SimpleDateFormat format = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
+        List<String> labels = new ArrayList<>();
+        labels.add(getString(R.string.adjustment_lot_auto));
+        for (Lot lot : lots) {
+            String expiry = lot.getExpiryDate() != null
+                    ? getString(R.string.lot_expires_format, format.format(lot.getExpiryDate()))
+                    : getString(R.string.lot_no_expiry);
+            labels.add(getString(R.string.adjustment_lot_item_format, lot.getLotNumber(), lot.getQuantity(), expiry));
+        }
+        binding.actLot.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, labels));
+        binding.actLot.setText(labels.get(0), false);
+        binding.actLot.setOnItemClickListener((parent, view, position, id) ->
+                selectedLot = position == 0 ? null : lots.get(position - 1));
     }
 
     private static String text(android.widget.TextView view) {

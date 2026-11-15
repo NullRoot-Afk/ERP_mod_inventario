@@ -1,0 +1,300 @@
+rules_version = '2';
+
+// =====================================================================
+// Reglas de seguridad de Ruka Inventario (Cloud Firestore)
+//
+// Qué protegen:
+//   1. Aislamiento por empresa: cada usuario solo lee/escribe datos de su
+//      companyId (multiempresa).
+//   2. Permisos por rol (guía §1): solo SUPERVISOR / JEFE_BODEGA aprueban
+//      ajustes, resuelven discrepancias o eliminan órdenes de recepción.
+//   3. Conflictos al sincronizar (guía §11): los cambios de estado solo
+//      avanzan (un ajuste aprobado no se vuelve a aprobar, un pedido
+//      despachado no se despacha de nuevo, un conteo cerrado no se cierra
+//      otra vez). Como cada operación de la app va en un único batch, si
+//      el servidor rechaza el cambio de estado rechaza TODO el batch,
+//      incluido el movimiento de stock: nunca queda stock duplicado, aunque
+//      dos dispositivos hayan trabajado sin conexión sobre lo mismo.
+//   4. Bitácora inmutable (guía §10): MOVEMENTS no se edita ni se borra,
+//      y cada movimiento queda firmado con el uid real de quien lo hizo.
+//
+// REQUISITOS DE DATOS (revisar antes de publicar):
+//   - Cada usuario debe tener su documento en USERS/{uid de Firebase Auth}
+//     con companyId, role (OPERARIO | SUPERVISOR | JEFE_BODEGA) y, si
+//     corresponde, warehouseId. Usuarios cuyo documento tenga otro id (la app
+//     los encuentra por email como respaldo) quedarán SIN acceso.
+//   - companyId del usuario debe coincidir exactamente (mayúsculas incluidas)
+//     con el companyId de los datos.
+//
+// Publicar:  firebase deploy --only firestore:rules
+// Probar:    cd firestore-tests && npm test   (usa el emulador local)
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------
+    // Funciones comunes
+    // ---------------------------------------------------------------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function me() {
+      return get(/databases/$(database)/documents/USERS/$(request.auth.uid)).data;
+    }
+
+    function myCompany() {
+      return me().companyId;
+    }
+
+    function myWarehouse() {
+      // Misma regla que WorkContext: sin bodega asignada se usa "default".
+      return me().get('warehouseId', 'default');
+    }
+
+    function isSupervisor() {
+      return me().get('role', 'OPERARIO').upper() in ['SUPERVISOR', 'JEFE_BODEGA'];
+    }
+
+    // Lectura de un documento (o consulta filtrada por companyId) de mi empresa.
+    function readsMyCompany() {
+      return signedIn() && resource.data.companyId == myCompany();
+    }
+
+    // Lo que se escribe queda en mi empresa.
+    function writesMyCompany() {
+      return signedIn() && request.resource.data.companyId == myCompany();
+    }
+
+    // Una actualización no puede mover el documento a otra empresa.
+    function keepsCompany() {
+      return writesMyCompany() && resource.data.companyId == myCompany();
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function oldStatus() {
+      return resource.data.get('status', '');
+    }
+
+    function newStatus() {
+      return request.resource.data.get('status', '');
+    }
+
+    // Documento padre de una subcolección ITEMS. getAfter: el padre puede
+    // crearse en el mismo batch que sus líneas (ej. crear una transferencia).
+    function parentAfter(collection, id) {
+      return getAfter(/databases/$(database)/documents/$(collection)/$(id)).data;
+    }
+
+    function parentBefore(collection, id) {
+      return get(/databases/$(database)/documents/$(collection)/$(id)).data;
+    }
+
+    // ---------------------------------------------------------------
+    // Empresas y usuarios (los administra el ERP, no la app)
+    // ---------------------------------------------------------------
+
+    // La configuración inicial del dispositivo valida el código de empresa
+    // ANTES de iniciar sesión, por eso la lectura es pública. Solo contiene
+    // id, código y nombre.
+    match /COMPANIES/{companyId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /USERS/{userId} {
+      // Lectura del propio documento por uid, o la búsqueda de respaldo por email.
+      allow get: if signedIn() && request.auth.uid == userId;
+      allow list: if signedIn() && resource.data.email == request.auth.token.email;
+      allow write: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // Catálogo
+    // ---------------------------------------------------------------
+
+    match /WAREHOUSES/{warehouseId} {
+      allow read: if readsMyCompany();
+      allow create: if writesMyCompany();
+      allow update, delete: if isSupervisor() && keepsCompany();
+    }
+
+    match /PRODUCTS/{productId} {
+      allow read: if readsMyCompany();
+      // Altas (catálogo demo) y cambios de stock/ubicación. El stock se mueve
+      // con incrementos dentro del mismo batch que su movimiento y su cambio de
+      // estado: si éste se rechaza, el incremento también.
+      allow create: if writesMyCompany();
+      allow update: if keepsCompany();
+      allow delete: if false;
+    }
+
+    // Bitácora (trazabilidad, guía §10): solo se agrega, firmada por quien la escribe.
+    match /MOVEMENTS/{movementId} {
+      allow read: if readsMyCompany();
+      allow create: if writesMyCompany()
+                    && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // Recepción (guía §3)
+    // ---------------------------------------------------------------
+
+    match /RECEPTIONS/{receptionId} {
+      allow read: if readsMyCompany();
+      allow create: if writesMyCompany();
+      allow update: if keepsCompany();
+      // "Un operario no puede eliminar registros" (guía §1).
+      allow delete: if isSupervisor() && readsMyCompany();
+
+      match /ITEMS/{itemId} {
+        allow read: if signedIn() && parentBefore('RECEPTIONS', receptionId).companyId == myCompany();
+        allow create, update: if signedIn() && parentAfter('RECEPTIONS', receptionId).companyId == myCompany();
+        allow delete: if isSupervisor() && parentBefore('RECEPTIONS', receptionId).companyId == myCompany();
+      }
+    }
+
+    match /DISCREPANCIES/{discrepancyId} {
+      allow read: if readsMyCompany();
+      allow create: if writesMyCompany() && newStatus() == 'ABIERTA';
+      // Solo un supervisor la cierra, y una sola vez.
+      allow update: if isSupervisor() && keepsCompany()
+                    && oldStatus() == 'ABIERTA' && newStatus() == 'RESUELTA'
+                    && changedKeys().hasOnly(['status', 'resolvedByName', 'resolvedAt']);
+      allow delete: if false;
+    }
+
+    // Fotos de evidencia: JPEG ya comprimido por la app (< 1 MB por documento).
+    match /EVIDENCE/{evidenceId} {
+      allow read: if readsMyCompany();
+      allow create: if writesMyCompany()
+                    && request.resource.data.image is bytes
+                    && request.resource.data.image.size() < 1000000;
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // Lotes y vencimientos (guía §10)
+    // ---------------------------------------------------------------
+
+    match /LOTS/{lotId} {
+      allow read: if readsMyCompany();
+      allow create: if writesMyCompany();
+      // Un lote retirado no se vuelve a retirar (el retiro crea un ajuste:
+      // repetirlo descontaría el stock dos veces).
+      allow update: if keepsCompany()
+                    && !(oldStatus() == 'RETIRADO' && 'retiredAt' in changedKeys());
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // Picking y despacho (guía §5 y §6)
+    // ---------------------------------------------------------------
+
+    function validPickingTransition(from, to) {
+      return from == to && from != 'DESPACHADO'
+          || from == 'PENDIENTE' && to in ['EN_PROCESO', 'PARCIAL', 'PREPARADO']
+          || from == 'EN_PROCESO' && to in ['PARCIAL', 'PREPARADO']
+          || from == 'PARCIAL' && to in ['EN_PROCESO', 'PREPARADO', 'DESPACHADO']
+          || from == 'PREPARADO' && to == 'DESPACHADO';
+    }
+
+    match /PICKING_ORDERS/{orderId} {
+      allow read: if readsMyCompany();
+      allow create: if writesMyCompany();
+      // DESPACHADO es final: un segundo despacho (otro dispositivo, o una
+      // escritura offline que llega tarde) se rechaza con todo su batch.
+      allow update: if keepsCompany() && validPickingTransition(oldStatus(), newStatus());
+      allow delete: if false;
+
+      match /ITEMS/{itemId} {
+        allow read: if signedIn() && parentBefore('PICKING_ORDERS', orderId).companyId == myCompany();
+        allow create: if signedIn() && parentAfter('PICKING_ORDERS', orderId).companyId == myCompany();
+        allow update: if signedIn()
+                      && parentBefore('PICKING_ORDERS', orderId).companyId == myCompany()
+                      && parentBefore('PICKING_ORDERS', orderId).get('status', '') != 'DESPACHADO';
+        allow delete: if false;
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // Conteo de inventario (guía §7)
+    // ---------------------------------------------------------------
+
+    match /COUNT_TASKS/{countId} {
+      allow read: if readsMyCompany();
+      allow create: if writesMyCompany();
+      // CERRADO es final: cerrar dos veces duplicaría los ajustes por diferencia.
+      allow update: if keepsCompany() && oldStatus() != 'CERRADO';
+      allow delete: if false;
+
+      match /ITEMS/{itemId} {
+        allow read: if signedIn() && parentBefore('COUNT_TASKS', countId).companyId == myCompany();
+        allow create: if signedIn() && parentAfter('COUNT_TASKS', countId).companyId == myCompany();
+        allow update: if signedIn()
+                      && parentBefore('COUNT_TASKS', countId).companyId == myCompany()
+                      && parentBefore('COUNT_TASKS', countId).get('status', '') != 'CERRADO';
+        allow delete: if false;
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // Ajustes (guía §8): el operario reporta, el supervisor aprueba
+    // ---------------------------------------------------------------
+
+    match /ADJUSTMENTS/{adjustmentId} {
+      allow read: if readsMyCompany();
+      allow create: if writesMyCompany()
+                    && newStatus() == 'PENDIENTE'
+                    && request.resource.data.createdById == request.auth.uid;
+      // Solo supervisor, solo desde PENDIENTE y solo los campos de revisión.
+      // Una segunda aprobación (aunque venga de una cola offline) se rechaza,
+      // y con ella el movimiento de stock del mismo batch.
+      allow update: if isSupervisor() && keepsCompany()
+                    && oldStatus() == 'PENDIENTE'
+                    && newStatus() in ['APROBADO', 'RECHAZADO']
+                    && request.resource.data.reviewedById == request.auth.uid
+                    && changedKeys().hasOnly(['status', 'reviewedById', 'reviewedByName',
+                                              'reviewedAt', 'reviewNote']);
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // Transferencias entre bodegas (guía §9)
+    // ---------------------------------------------------------------
+
+    match /TRANSFERS/{transferId} {
+      allow read: if readsMyCompany();
+      // EN_TRANSITO solo lo usan los datos de prueba (transferencias que "vienen en camino").
+      allow create: if writesMyCompany() && newStatus() in ['POR_ENVIAR', 'EN_TRANSITO'];
+      // Envía la bodega de origen, recibe la de destino; el estado solo avanza.
+      allow update: if keepsCompany() && (
+            oldStatus() == 'POR_ENVIAR' && newStatus() == 'EN_TRANSITO'
+              && myWarehouse() == resource.data.originWarehouseId
+         || oldStatus() == 'EN_TRANSITO' && newStatus() == 'RECIBIDA'
+              && myWarehouse() == resource.data.destinationWarehouseId
+      );
+      allow delete: if false;
+
+      match /ITEMS/{itemId} {
+        allow read: if signedIn() && parentBefore('TRANSFERS', transferId).companyId == myCompany();
+        allow create: if signedIn() && parentAfter('TRANSFERS', transferId).companyId == myCompany();
+        allow update: if signedIn()
+                      && parentBefore('TRANSFERS', transferId).companyId == myCompany()
+                      && parentBefore('TRANSFERS', transferId).get('status', '') != 'RECIBIDA';
+        allow delete: if false;
+      }
+    }
+
+    // Todo lo demás, cerrado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

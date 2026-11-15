@@ -119,6 +119,27 @@
                 android:textColor="@color/text_primary" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- ===== Lote afectado (solo si el producto tiene lotes activos) ===== -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilLot"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="@string/adjustment_lot"
+            android:visibility="gone"
+            app:helperText="@string/adjustment_lot_helper"
+            tools:visibility="visible">
+
+            <AutoCompleteTextView
+                android:id="@+id/actLot"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"
+                android:padding="16dp"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
         <!-- ===== Dirección (solo para motivos sin signo fijo) ===== -->
         <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/toggleDirection"

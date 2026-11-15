@@ -19,11 +19,14 @@ public class Adjustment {
     private final Date createdAt;
     private final String reviewedByName;
     private final String reviewNote;
+    /** Lote afectado ("" = sin indicar: al aprobar una rebaja se descuenta por FEFO). */
+    private final String lotId;
+    private final String lotNumber;
 
     public Adjustment(String id, String productId, String productCode, String productName, int quantity,
                       AdjustmentReason reason, String notes, String reference, AdjustmentStatus status,
                       String createdById, String createdByName, Date createdAt,
-                      String reviewedByName, String reviewNote) {
+                      String reviewedByName, String reviewNote, String lotId, String lotNumber) {
         this.id = id;
         this.productId = productId;
         this.productCode = productCode;
@@ -38,6 +41,8 @@ public class Adjustment {
         this.createdAt = createdAt;
         this.reviewedByName = reviewedByName;
         this.reviewNote = reviewNote;
+        this.lotId = lotId;
+        this.lotNumber = lotNumber;
     }
 
     public String getId() { return id; }
@@ -54,6 +59,9 @@ public class Adjustment {
     public Date getCreatedAt() { return createdAt; }
     public String getReviewedByName() { return reviewedByName; }
     public String getReviewNote() { return reviewNote; }
+    public String getLotId() { return lotId; }
+    public String getLotNumber() { return lotNumber; }
+    public boolean hasLot() { return lotId != null && !lotId.isEmpty(); }
 
     /** "+5" / "-3" para mostrar. */
     public String signedQuantity() {

@@ -65,6 +65,15 @@ final class TaskNotifier {
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(text)));
     }
 
+    /** Un cambio hecho sin conexión que el servidor rechazó al sincronizar (conflicto). */
+    static void notifyRejectedSync(Context context, String detail) {
+        String text = context.getString(R.string.notif_sync_rejected_format, detail);
+        post(context, (int) (System.currentTimeMillis() & 0xFFFFFF), base(context, CHANNEL_ALERTS)
+                .setContentTitle(context.getString(R.string.notif_sync_rejected_title))
+                .setContentText(text)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(text)));
+    }
+
     private static NotificationCompat.Builder base(Context context, String channel) {
         // Se abre la pantalla de inicio de la app: la sesión puede haberse perdido
         // (vive en memoria) y el flujo normal pide credenciales si hace falta.

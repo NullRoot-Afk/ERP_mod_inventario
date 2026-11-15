@@ -33,8 +33,8 @@ import javax.inject.Singleton;
  *         createdByName, createdAt, retiredByName, retiredAt)
  *
  * quantity = unidades del lote que siguen en bodega: suma al recibir y resta al
- * despachar o transferir (FEFO). Los ajustes manuales (merma, daño) no descuentan
- * lote porque no se sabe de cuál salieron; un lote vencido se retira a mano.
+ * despachar o transferir (FEFO). Un ajuste aprobado también lo mueve: del lote que
+ * indicó quien lo reportó (o del lote retirado) y, si no indicó ninguno, por FEFO.
  */
 @Singleton
 public class LotRepositoryImpl implements LotRepository {
@@ -154,6 +154,16 @@ public class LotRepositoryImpl implements LotRepository {
     }
 
     @Override
+    public String addToLot(Writes writes, Lot lot, int quantity) {
+        if (lot == null || lot.isRetired() || quantity <= 0) return null;
+        Map<String, Object> data = new HashMap<>();
+        data.put("quantity", FieldValue.increment(quantity));
+        data.put("status", ACTIVE);
+        writes.update(firestore.collection(FirestoreCollections.LOTS).document(lot.getId()), data);
+        return lot.getLotNumber() + "×" + quantity;
+    }
+
+    @Override
     public void retire(Lot lot, RepositoryCallback<OperationResult> callback) {
         if (lot == null) {
             callback.onResult(OperationResult.error("Lote inválido."));
@@ -179,7 +189,7 @@ public class LotRepositoryImpl implements LotRepository {
                     adjustments.addPending(w, lot.getProductId(), lot.getProductCode(), lot.getProductName(),
                             -qty, AdjustmentReason.VENCIDO,
                             "Retiro de lote " + lot.getLotNumber() + " (vence " + expiry + ")",
-                            "Lote " + lot.getLotNumber());
+                            "Lote " + lot.getLotNumber(), lot.getId(), lot.getLotNumber());
                     return "Lote " + lot.getLotNumber() + " retirado. Se creó un ajuste de "
                             + qty + " un. pendiente de aprobación.";
                 },

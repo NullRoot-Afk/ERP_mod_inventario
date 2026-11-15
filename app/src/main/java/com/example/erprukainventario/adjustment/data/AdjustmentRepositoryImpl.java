@@ -11,7 +11,12 @@ import com.example.erprukainventario.core.data.Docs;
 import com.example.erprukainventario.core.data.FirestoreCollections;
 import com.example.erprukainventario.core.data.GuardedCommit;
 import com.example.erprukainventario.core.data.InventoryWriter;
+import com.example.erprukainventario.core.data.LotRepository;
 import com.example.erprukainventario.core.data.WorkContext;
+import com.example.erprukainventario.core.data.Writes;
+import com.example.erprukainventario.core.domain.Fefo;
+import com.example.erprukainventario.core.domain.Lot;
+import com.example.erprukainventario.core.domain.LotTake;
 import com.example.erprukainventario.core.domain.MovementType;
 import com.example.erprukainventario.core.domain.OperationResult;
 import com.example.erprukainventario.core.domain.Product;
@@ -32,7 +37,7 @@ import javax.inject.Singleton;
 
 /**
  * Modelo: ADJUSTMENTS/{id} (companyId, warehouseId, productId, productCode, productName,
- *                           quantity (con signo), reason, notes, reference, status,
+ *                           quantity (con signo), reason, notes, reference, lotId, lotNumber, status,
  *                           createdById, createdByName, createdAt,
  *                           reviewedById, reviewedByName, reviewedAt, reviewNote)
  *
@@ -50,16 +55,19 @@ public class AdjustmentRepositoryImpl implements AdjustmentRepository {
     private final AdjustmentWriter writer;
     private final DemoCatalog catalog;
     private final GuardedCommit guarded;
+    private final LotRepository lots;
 
     @Inject
     public AdjustmentRepositoryImpl(FirebaseFirestore firestore, WorkContext context, InventoryWriter inventory,
-                                    AdjustmentWriter writer, DemoCatalog catalog, GuardedCommit guarded) {
+                                    AdjustmentWriter writer, DemoCatalog catalog, GuardedCommit guarded,
+                                    LotRepository lots) {
         this.firestore = firestore;
         this.context = context;
         this.inventory = inventory;
         this.writer = writer;
         this.catalog = catalog;
         this.guarded = guarded;
+        this.lots = lots;
     }
 
     @Override
@@ -92,15 +100,16 @@ public class AdjustmentRepositoryImpl implements AdjustmentRepository {
     }
 
     @Override
-    public void create(Product product, int signedQuantity, AdjustmentReason reason, String notes,
+    public void create(Product product, Lot lot, int signedQuantity, AdjustmentReason reason, String notes,
                        RepositoryCallback<Boolean> callback) {
         if (product == null || signedQuantity == 0 || context.companyId() == null) {
             callback.onResult(false);
             return;
         }
         WriteBatch batch = firestore.batch();
-        writer.addPending(batch, product.getId(), product.getCode(), product.getName(),
-                signedQuantity, reason, notes, "Manual");
+        writer.addPending(Writes.of(batch), product.getId(), product.getCode(), product.getName(),
+                signedQuantity, reason, notes, "Manual",
+                lot != null ? lot.getId() : null, lot != null ? lot.getLotNumber() : null);
         // Sin red responde al tiro: el reporte queda en la cola offline.
         guarded.commitLocally(batch, "", "", r -> callback.onResult(r.isSuccess()));
     }
@@ -112,14 +121,45 @@ public class AdjustmentRepositoryImpl implements AdjustmentRepository {
             return;
         }
         DocumentReference ref = firestore.collection(FirestoreCollections.ADJUSTMENTS).document(adjustmentId);
-        // Transacción: si dos supervisores aprueban a la vez, solo uno mueve el stock.
-        guarded.run(ref, AdjustmentRepositoryImpl::pendingOrError, (doc, w) -> {
-            Adjustment adj = toAdjustment(doc);
-            w.update(ref, review(AdjustmentStatus.APROBADO, ""));
-            inventory.apply(w, MovementType.AJUSTE, adj.getProductId(), adj.getProductCode(),
-                    adj.getProductName(), adj.getQuantity(), adj.getReason().getLabel() + " · aprobado por " + context.userName());
-            return "Ajuste aprobado: " + adj.signedQuantity() + " un. de " + adj.getProductName();
-        }, "No se pudo aprobar.", callback);
+        // Los lotes del producto se leen antes: la transacción no admite consultas
+        // (igual que el plan FEFO del despacho). Sin red, ambas lecturas salen del caché.
+        ref.get().addOnCompleteListener(read -> {
+            String productId = read.isSuccessful() && read.getResult() != null
+                    ? read.getResult().getString("productId") : null;
+            lots.getLotsForProduct(productId, productLots ->
+                    // Transacción: si dos supervisores aprueban a la vez, solo uno mueve el stock.
+                    guarded.run(ref, AdjustmentRepositoryImpl::pendingOrError, (doc, w) -> {
+                        Adjustment adj = toAdjustment(doc);
+                        w.update(ref, review(AdjustmentStatus.APROBADO, ""));
+                        String lotLabel = applyToLots(w, adj, productLots);
+                        inventory.apply(w, MovementType.AJUSTE, adj.getProductId(), adj.getProductCode(),
+                                adj.getProductName(), adj.getQuantity(),
+                                adj.getReason().getLabel() + " · aprobado por " + context.userName(),
+                                context.warehouseId(), lotLabel);
+                        return "Ajuste aprobado: " + adj.signedQuantity() + " un. de " + adj.getProductName()
+                                + (lotLabel != null ? "\nLotes: " + lotLabel : "");
+                    }, "No se pudo aprobar.", callback));
+        });
+    }
+
+    /**
+     * Efecto del ajuste en los lotes (guía §10). Una rebaja sale del lote indicado
+     * (la caja dañada, el lote retirado) y lo que falte por FEFO; sin lote indicado,
+     * FEFO puro. Una entrada solo suma a un lote si se indicó cuál.
+     *
+     * @return texto de lotes para el movimiento, o null si no tocó ninguno.
+     */
+    private String applyToLots(Writes w, Adjustment adj, List<Lot> productLots) {
+        if (adj.getQuantity() < 0) {
+            List<LotTake> takes = Fefo.planFor(productLots, adj.getProductId(), -adj.getQuantity(),
+                    adj.hasLot() ? adj.getLotId() : null);
+            return lots.applyTakes(w, takes);
+        }
+        if (!adj.hasLot()) return null;
+        for (Lot lot : productLots) {
+            if (lot.getId().equals(adj.getLotId())) return lots.addToLot(w, lot, adj.getQuantity());
+        }
+        return null;
     }
 
     private static String pendingOrError(DocumentSnapshot doc) {
@@ -190,7 +230,9 @@ public class AdjustmentRepositoryImpl implements AdjustmentRepository {
                 Docs.str(doc, "", "createdByName"),
                 Docs.date(doc, "createdAt"),
                 Docs.str(doc, "", "reviewedByName"),
-                Docs.str(doc, "", "reviewNote")
+                Docs.str(doc, "", "reviewNote"),
+                Docs.str(doc, "", "lotId"),
+                Docs.str(doc, "", "lotNumber")
         );
     }
 }

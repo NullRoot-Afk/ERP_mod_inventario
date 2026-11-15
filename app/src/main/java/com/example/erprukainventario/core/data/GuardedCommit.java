@@ -1,9 +1,11 @@
 package com.example.erprukainventario.core.data;
 
+import android.content.Context;
 import android.util.Log;
 
 import com.example.erprukainventario.auth.data.RepositoryCallback;
 import com.example.erprukainventario.core.domain.OperationResult;
+import com.example.erprukainventario.notifications.SyncConflictNotifier;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -13,6 +15,8 @@ import com.google.firebase.firestore.WriteBatch;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
+import dagger.hilt.android.qualifiers.ApplicationContext;
 
 /**
  * Cambios de estado con control de concurrencia (guía §11: resolución de conflictos).
@@ -44,11 +48,13 @@ public class GuardedCommit {
 
     private final FirebaseFirestore firestore;
     private final SyncStatusMonitor sync;
+    private final Context appContext;
 
     @Inject
-    public GuardedCommit(FirebaseFirestore firestore, SyncStatusMonitor sync) {
+    public GuardedCommit(FirebaseFirestore firestore, SyncStatusMonitor sync, @ApplicationContext Context appContext) {
         this.firestore = firestore;
         this.sync = sync;
+        this.appContext = appContext;
     }
 
     public void run(DocumentReference guard, Check check, Build build, String failureMessage,
@@ -104,8 +110,16 @@ public class GuardedCommit {
         Task<Void> task = batch.commit();
         if (!sync.isOnline()) {
             sync.refresh();
-            callback.onResult(OperationResult.ok(successMessage));
-            task.addOnFailureListener(e -> Log.e(TAG, "Escritura offline rechazada al sincronizar", e));
+            boolean tagged = successMessage.isEmpty() || successMessage.endsWith(OFFLINE_SUFFIX);
+            callback.onResult(OperationResult.ok(tagged ? successMessage : successMessage + OFFLINE_SUFFIX));
+            task.addOnCompleteListener(t -> sync.refresh());
+            // Al volver la red, las reglas del servidor pueden rechazar el batch si otro
+            // usuario se adelantó. Se descarta completo (sin stock a medias) y se avisa.
+            task.addOnFailureListener(e -> {
+                Log.e(TAG, "Escritura offline rechazada al sincronizar", e);
+                String detail = successMessage.replace(OFFLINE_SUFFIX, "").split("\n")[0].trim();
+                SyncConflictNotifier.notifyRejected(appContext, detail.isEmpty() ? "operación sin conexión" : detail);
+            });
             return;
         }
         task.addOnSuccessListener(v -> callback.onResult(OperationResult.ok(successMessage)))

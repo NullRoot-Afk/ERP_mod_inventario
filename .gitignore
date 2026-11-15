@@ -32,3 +32,8 @@ captures/
 # Firmas de release / Keystores
 *.jks
 *.keystore
+
+# Pruebas de reglas Firestore (node / emulador)
+firestore-tests/node_modules/
+firestore-debug.log
+firebase-debug.log

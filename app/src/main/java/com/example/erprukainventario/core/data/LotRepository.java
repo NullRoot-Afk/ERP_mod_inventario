@@ -37,6 +37,12 @@ public interface LotRepository {
     String applyTakes(Writes writes, List<LotTake> takes);
 
     /**
+     * Suma unidades a un lote existente (ajuste de entrada con lote indicado) y lo
+     * reactiva si estaba agotado. Un lote retirado no recibe unidades: devuelve null.
+     */
+    String addToLot(Writes writes, Lot lot, int quantity);
+
+    /**
      * Retira un lote vencido o por vencer: lo marca RETIRADO y crea un ajuste
      * PENDIENTE (motivo "Producto vencido") para que un supervisor descuente el stock.
      */

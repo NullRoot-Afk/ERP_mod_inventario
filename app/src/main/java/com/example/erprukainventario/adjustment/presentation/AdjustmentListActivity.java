@@ -56,6 +56,8 @@ public class AdjustmentListActivity extends BaseTaskListActivity {
                 .append("Cantidad: ").append(a.signedQuantity()).append(" un.\n")
                 .append("Motivo: ").append(a.getReason().getLabel()).append("\n")
                 .append("Origen: ").append(a.getReference()).append("\n")
+                .append("Lote: ").append(a.hasLot() ? a.getLotNumber()
+                        : a.getQuantity() < 0 ? "sin indicar (se descuenta por FEFO)" : "sin lote").append("\n")
                 .append("Reportado por: ").append(a.getCreatedByName()).append(" · ")
                 .append(AdjustmentListViewModel.formatDate(a));
         if (!a.getNotes().isEmpty()) detail.append("\nNotas: ").append(a.getNotes());

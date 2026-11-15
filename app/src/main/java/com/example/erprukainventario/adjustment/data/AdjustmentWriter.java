@@ -38,6 +38,16 @@ public class AdjustmentWriter {
 
     public void addPending(Writes w, String productId, String productCode, String productName,
                            int signedQuantity, AdjustmentReason reason, String notes, String reference) {
+        addPending(w, productId, productCode, productName, signedQuantity, reason, notes, reference, null, null);
+    }
+
+    /**
+     * @param lotId lote afectado (la caja dañada, el lote retirado), o null. Al aprobar,
+     *              la rebaja sale de ese lote; sin lote indicado, por FEFO.
+     */
+    public void addPending(Writes w, String productId, String productCode, String productName,
+                           int signedQuantity, AdjustmentReason reason, String notes, String reference,
+                           String lotId, String lotNumber) {
         Map<String, Object> data = new HashMap<>();
         data.put("companyId", context.companyId());
         data.put("warehouseId", context.warehouseId());
@@ -48,6 +58,8 @@ public class AdjustmentWriter {
         data.put("reason", reason.name());
         data.put("notes", notes != null ? notes : "");
         data.put("reference", reference != null ? reference : "");
+        data.put("lotId", lotId != null ? lotId : "");
+        data.put("lotNumber", lotNumber != null ? lotNumber : "");
         data.put("status", AdjustmentStatus.PENDIENTE.name());
         data.put("createdById", context.userId());
         data.put("createdByName", context.userName());

@@ -48,10 +48,6 @@
     <string name="reception_detail_title">Detalle de Recepción</string>
     <string name="reception_products_header">Productos a Recibir</string>
     <string name="reception_button_start">Comenzar recepción</string>
-    <string name="reception_button_finish">Finalizar Recepción</string>
-    <string name="reception_process_title">Proceso de Recepción</string>
-    <string name="reception_progress_title">Avance de Recepción</string>
-    <string name="reception_units_format">%1$d / %2$d unidades</string>
     <string name="reception_minus">-</string>
     <string name="reception_plus">+</string>
     <string name="reception_search_hint">Buscar OC o proveedor</string>
@@ -144,6 +140,10 @@
     <string name="adjustment_approval_note">El ajuste quedará pendiente hasta que un supervisor o jefe de bodega lo apruebe. Recién entonces se modifica el stock.</string>
     <string name="adjustment_submit">Enviar a aprobación</string>
     <string name="adjustment_product_format">%1$s\nSKU %2$s · Ubicación %3$s\nStock en tu bodega: %4$d un.</string>
+    <string name="adjustment_lot">Lote afectado</string>
+    <string name="adjustment_lot_helper">Si no lo indicas, la rebaja se descuenta del lote que vence primero (FEFO).</string>
+    <string name="adjustment_lot_auto">Sin indicar (FEFO)</string>
+    <string name="adjustment_lot_item_format">Lote %1$s · %2$d un. · %3$s</string>
 
     <!-- ===== Escanear ahora (consulta de producto) ===== -->
     <string name="lookup_title">Consulta de producto</string>
@@ -257,6 +257,8 @@
     <string name="notif_channel_alerts">Alertas de stock y vencimientos</string>
     <string name="notif_new_task">Nueva tarea asignada</string>
     <string name="notif_new_tasks_format">%1$d tareas nuevas</string>
+    <string name="notif_sync_rejected_title">Cambio sin conexión rechazado</string>
+    <string name="notif_sync_rejected_format">No se aplicó: %1$s. Otro usuario ya lo había modificado mientras no había conexión; no se movió stock. Revisa el estado actual en la app.</string>
     <string name="notif_daily_title">Alertas de bodega</string>
     <string name="notif_daily_format">%1$d productos con stock crítico · %2$d lotes vencidos o por vencer</string>
 </resources>

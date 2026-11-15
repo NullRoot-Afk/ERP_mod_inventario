@@ -74,4 +74,9 @@ public class WorkContext {
     public boolean canCreateCounts() {
         return role() != UserRole.OPERARIO;
     }
+
+    /** "Un operario no puede eliminar registros" (guía §1). Lo exige también firestore.rules. */
+    public boolean canDeleteRecords() {
+        return role() != UserRole.OPERARIO;
+    }
 }

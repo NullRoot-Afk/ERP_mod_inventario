@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
+import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.reception.data.ReceptionRepository;
 
 import javax.inject.Inject;
@@ -18,9 +19,16 @@ public class ReceptionDetailViewModel extends ViewModel {
     private final MutableLiveData<String> message = new MutableLiveData<>();
     private final MutableLiveData<Boolean> deleted = new MutableLiveData<>(false);
 
+    private final WorkContext context;
+
     @Inject
-    public ReceptionDetailViewModel(ReceptionRepository repository) {
+    public ReceptionDetailViewModel(ReceptionRepository repository, WorkContext context) {
         this.repository = repository;
+        this.context = context;
+    }
+
+    public boolean canDelete() {
+        return context.canDeleteRecords();
     }
 
     public LiveData<ReceptionDetailUiState> getUiState() { return uiState; }

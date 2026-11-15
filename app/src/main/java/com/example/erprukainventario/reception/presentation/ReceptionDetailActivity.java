@@ -77,6 +77,8 @@ public class ReceptionDetailActivity extends AppCompatActivity {
             startActivity(intent);
         });
         binding.btnDeleteOrder.setOnClickListener(v -> confirmDeleteOrder());
+        // Solo supervisor / jefe de bodega elimina (las reglas del servidor lo rechazarían igual).
+        binding.btnDeleteOrder.setVisibility(viewModel.canDelete() ? View.VISIBLE : View.GONE);
         binding.btnAddItem.setOnClickListener(v -> showItemDialog(null));
     }
 
@@ -135,6 +137,11 @@ public class ReceptionDetailActivity extends AppCompatActivity {
     }
 
     private void confirmDeleteItem(PurchaseOrderItem item) {
+        if (!viewModel.canDelete()) {
+            android.widget.Toast.makeText(this, "Solo un supervisor o jefe de bodega puede eliminar productos de la orden.",
+                    android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
         new AlertDialog.Builder(this)
                 .setTitle("Eliminar producto")
                 .setMessage("¿Eliminar \"" + item.getProductName() + "\" de esta orden?")

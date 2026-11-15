@@ -6,10 +6,15 @@ import androidx.lifecycle.ViewModel;
 
 import com.example.erprukainventario.adjustment.data.AdjustmentRepository;
 import com.example.erprukainventario.adjustment.domain.AdjustmentReason;
+import com.example.erprukainventario.core.data.LotRepository;
 import com.example.erprukainventario.core.data.ProductRepository;
 import com.example.erprukainventario.core.data.WorkContext;
+import com.example.erprukainventario.core.domain.Lot;
 import com.example.erprukainventario.core.domain.Product;
 import com.example.erprukainventario.core.ui.Event;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.inject.Inject;
 
@@ -22,19 +27,26 @@ public class AdjustmentFormViewModel extends ViewModel {
     private final ProductRepository products;
     private final WorkContext context;
 
+    private final LotRepository lotRepository;
+
     private final MutableLiveData<Product> product = new MutableLiveData<>();
+    /** Lotes activos con unidades del producto buscado (para indicar el lote afectado). */
+    private final MutableLiveData<List<Lot>> lots = new MutableLiveData<>(new ArrayList<>());
     private final MutableLiveData<Boolean> busy = new MutableLiveData<>(false);
     private final MutableLiveData<Event<String>> messages = new MutableLiveData<>();
     private final MutableLiveData<Boolean> saved = new MutableLiveData<>(false);
 
     @Inject
-    public AdjustmentFormViewModel(AdjustmentRepository adjustments, ProductRepository products, WorkContext context) {
+    public AdjustmentFormViewModel(AdjustmentRepository adjustments, ProductRepository products, WorkContext context,
+                                   LotRepository lotRepository) {
         this.adjustments = adjustments;
         this.products = products;
         this.context = context;
+        this.lotRepository = lotRepository;
     }
 
     public LiveData<Product> getProduct() { return product; }
+    public LiveData<List<Lot>> getLots() { return lots; }
     public LiveData<Boolean> isBusy() { return busy; }
     public LiveData<Event<String>> getMessages() { return messages; }
     public LiveData<Boolean> isSaved() { return saved; }
@@ -52,11 +64,25 @@ public class AdjustmentFormViewModel extends ViewModel {
         products.findByCode(code, found -> {
             busy.setValue(false);
             product.setValue(found);
-            if (found == null) messages.setValue(new Event<>("No existe un producto con el código " + code.trim() + "."));
+            lots.setValue(new ArrayList<>());
+            if (found == null) {
+                messages.setValue(new Event<>("No existe un producto con el código " + code.trim() + "."));
+                return;
+            }
+            lotRepository.getLotsForProduct(found.getId(), all -> {
+                Product current = product.getValue();
+                if (current == null || !current.getId().equals(found.getId())) return; // ya buscó otro
+                List<Lot> active = new ArrayList<>();
+                for (Lot lot : all) {
+                    if (!lot.isRetired() && lot.getQuantity() > 0) active.add(lot);
+                }
+                lots.setValue(active);
+            });
         });
     }
 
-    public void submit(AdjustmentReason reason, boolean outgoing, String quantityText, String notes) {
+    /** @param lot lote afectado, o null para que la rebaja se descuente por FEFO al aprobar. */
+    public void submit(AdjustmentReason reason, boolean outgoing, String quantityText, String notes, Lot lot) {
         Product p = product.getValue();
         if (p == null) {
             messages.setValue(new Event<>("Primero busca el producto."));
@@ -82,9 +108,14 @@ public class AdjustmentFormViewModel extends ViewModel {
                     + p.stockIn(context.warehouseId()) + " un.)."));
             return;
         }
+        if (sign < 0 && lot != null && qty > lot.getQuantity()) {
+            messages.setValue(new Event<>("El lote " + lot.getLotNumber() + " solo tiene "
+                    + lot.getQuantity() + " un. Indica otro lote o déjalo sin indicar (FEFO)."));
+            return;
+        }
 
         busy.setValue(true);
-        adjustments.create(p, sign * qty, reason, notes, ok -> {
+        adjustments.create(p, lot, sign * qty, reason, notes, ok -> {
             busy.setValue(false);
             if (ok) saved.setValue(true);
             else messages.setValue(new Event<>("No se pudo registrar el ajuste."));
