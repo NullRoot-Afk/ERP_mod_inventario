@@ -1,10 +1,22 @@
 package com.example.erprukainventario.home.presentation;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
+
+import com.example.erprukainventario.dashboard.presentation.DashboardActivity;
+import com.example.erprukainventario.location.presentation.LocationStockActivity;
+import com.example.erprukainventario.notifications.TaskAlertsScheduler;
+
+import javax.inject.Inject;
 
 import com.example.erprukainventario.R;
 import com.example.erprukainventario.adjustment.presentation.AdjustmentListActivity;
@@ -25,6 +37,13 @@ public class HomeActivity extends AppCompatActivity {
     private ActivityHomeBinding binding;
     private HomeViewModel viewModel;
 
+    @Inject
+    TaskAlertsScheduler taskAlerts;
+
+    // Si lo rechaza, la app funciona igual: el contador de tareas del inicio sigue visible.
+    private final ActivityResultLauncher<String> notificationPermission =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> { });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -35,13 +54,16 @@ public class HomeActivity extends AppCompatActivity {
 
         setupMenuButtons();
         observeUiState();
+
+        taskAlerts.start();
+        if (savedInstanceState == null) requestNotificationPermission();
     }
 
     /**
      * Cada botón del menú es el mismo layout (item_home_menu_button.xml)
-     * incluido 6 veces. ViewBinding genera un sub-binding por cada
+     * incluido 8 veces. ViewBinding genera un sub-binding por cada
      * <include>, accesible como binding.btnRecepcion, binding.btnPicking,
-     * etc. — así evitamos colisión de IDs entre las 6 copias, que sí
+     * etc. — así evitamos colisión de IDs entre las 8 copias, que sí
      * pasaría con un findViewById() plano sobre toda la Activity.
      */
     private void setupMenuButtons() {
@@ -63,8 +85,26 @@ public class HomeActivity extends AppCompatActivity {
         configureMenuButton(binding.btnAjustes, R.drawable.ic_adjustments_24, getString(R.string.home_menu_ajustes),
                 () -> startActivity(new Intent(this, AdjustmentListActivity.class)));
 
+        configureMenuButton(binding.btnUbicaciones, R.drawable.ic_warehouse_24, getString(R.string.home_menu_ubicaciones),
+                () -> startActivity(new Intent(this, LocationStockActivity.class)));
+
+        configureMenuButton(binding.btnDashboard, R.drawable.ic_chart_24, getString(R.string.home_menu_dashboard),
+                () -> startActivity(new Intent(this, DashboardActivity.class)));
+
+        // La campana abre las alertas (stock crítico, vencimientos, discrepancias).
+        binding.ivBell.setOnClickListener(v -> startActivity(new Intent(this, DashboardActivity.class)));
+
         binding.btnScanNow.setOnClickListener(v ->
                 startActivity(new Intent(this, ProductLookupActivity.class)));
+    }
+
+    /** Android 13+ exige pedir permiso para mostrar notificaciones (guía §13). */
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS);
+        }
     }
 
     @Override

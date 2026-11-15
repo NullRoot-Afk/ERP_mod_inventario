@@ -17,7 +17,9 @@ import com.example.erprukainventario.core.domain.Product;
 import com.example.erprukainventario.core.scan.BarcodeScannerController;
 import com.example.erprukainventario.core.scan.ScanFeedback;
 import com.example.erprukainventario.core.ui.Dialogs;
+import com.example.erprukainventario.core.ui.LotViews;
 import com.example.erprukainventario.databinding.ActivityProductLookupBinding;
+import com.example.erprukainventario.location.presentation.RelocationActivity;
 
 import java.util.Map;
 
@@ -111,6 +113,17 @@ public class ProductLookupActivity extends AppCompatActivity {
             showProduct(product);
         });
 
+        viewModel.getLots().observe(this, list -> {
+            LotViews.fill(binding.llLots, list, false, viewModel::retireLot);
+            binding.tvNoLots.setVisibility(list.isEmpty() && viewModel.getProduct().getValue() != null
+                    ? View.VISIBLE : View.GONE);
+        });
+
+        viewModel.getMessage().observe(this, event -> {
+            String text = event.consume();
+            if (text != null) Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+        });
+
         viewModel.getMovements().observe(this, list -> {
             movementAdapter.submit(list);
             binding.tvNoMovements.setVisibility(list.isEmpty() && viewModel.getProduct().getValue() != null
@@ -147,6 +160,8 @@ public class ProductLookupActivity extends AppCompatActivity {
 
         binding.btnReportAdjustment.setOnClickListener(v ->
                 startActivity(AdjustmentFormActivity.intent(this, p.getCode())));
+        binding.btnRelocate.setOnClickListener(v ->
+                startActivity(RelocationActivity.intent(this, p.getCode())));
 
         // Deja la cámara lista para el siguiente producto tras un momento.
         binding.cameraPreviewView.postDelayed(scanner::resume, 1500);

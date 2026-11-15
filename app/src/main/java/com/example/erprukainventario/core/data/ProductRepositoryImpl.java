@@ -133,6 +133,32 @@ public class ProductRepositoryImpl implements ProductRepository {
     }
 
     @Override
+    public void getWarehouseMovements(Date since, RepositoryCallback<List<Movement>> callback) {
+        String companyId = context.companyId();
+        if (companyId == null) {
+            callback.onResult(new ArrayList<>());
+            return;
+        }
+        firestore.collection(FirestoreCollections.MOVEMENTS)
+                .whereEqualTo("companyId", companyId)
+                .whereEqualTo("warehouseId", context.warehouseId())
+                .get()
+                .addOnCompleteListener(task -> {
+                    List<Movement> movements = new ArrayList<>();
+                    if (task.isSuccessful() && task.getResult() != null) {
+                        for (DocumentSnapshot doc : task.getResult().getDocuments()) {
+                            Movement m = toMovement(doc);
+                            // Sin fecha = recién creado offline: cuenta como reciente.
+                            if (m.getCreatedAt() == null || !m.getCreatedAt().before(since)) movements.add(m);
+                        }
+                    } else {
+                        Log.e(TAG, "getWarehouseMovements falló", task.getException());
+                    }
+                    callback.onResult(movements);
+                });
+    }
+
+    @Override
     public void getWarehouses(RepositoryCallback<List<Warehouse>> callback) {
         String companyId = context.companyId();
         if (companyId == null) {
@@ -156,13 +182,19 @@ public class ProductRepositoryImpl implements ProductRepository {
 
     // ---- mapeo ----
 
-    static Product toProduct(DocumentSnapshot doc) {
+    /**
+     * La ubicación entregada es la del producto en la bodega del usuario
+     * (locations.{bodega}, fijada al reubicar); si no tiene, la ubicación general.
+     */
+    private Product toProduct(DocumentSnapshot doc) {
+        String generalLocation = Docs.str(doc, "Sin ubicación", "location");
+        String location = Docs.strMap(doc, "locations").get(context.warehouseId());
         return new Product(
                 doc.getId(),
                 Docs.str(doc, doc.getId(), "code", "sku"),
                 Docs.str(doc, "Producto", "name", "productName"),
                 Docs.str(doc, "S/C", "barcode", "ean"),
-                Docs.str(doc, "Sin ubicación", "location"),
+                location != null ? location : generalLocation,
                 Docs.str(doc, "", "category"),
                 Docs.num(doc, "minStock"),
                 Docs.intMap(doc, "stock")
@@ -180,8 +212,11 @@ public class ProductRepositoryImpl implements ProductRepository {
                 type,
                 Docs.num(doc, "quantity"),
                 Docs.str(doc, "", "reference"),
+                Docs.str(doc, "", "userId"),
                 Docs.str(doc, "", "userName"),
                 Docs.str(doc, "", "warehouseId"),
+                Docs.str(doc, "", "productName"),
+                Docs.str(doc, "", "lot"),
                 Docs.date(doc, "createdAt")
         );
     }

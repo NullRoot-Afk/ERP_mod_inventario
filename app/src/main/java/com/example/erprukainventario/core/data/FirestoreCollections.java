@@ -10,6 +10,10 @@ public final class FirestoreCollections {
     public static final String COUNT_TASKS = "COUNT_TASKS";
     public static final String TRANSFERS = "TRANSFERS";
     public static final String ADJUSTMENTS = "ADJUSTMENTS";
+    public static final String LOTS = "LOTS";
+    public static final String DISCREPANCIES = "DISCREPANCIES";
+    /** Fotos de evidencia (JPEG comprimido como Blob), separadas para no inflar otros documentos. */
+    public static final String EVIDENCE = "EVIDENCE";
     /** Subcolección de líneas usada por PICKING_ORDERS, COUNT_TASKS y TRANSFERS. */
     public static final String ITEMS = "ITEMS";
 

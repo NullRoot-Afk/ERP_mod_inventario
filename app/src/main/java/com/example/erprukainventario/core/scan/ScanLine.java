@@ -33,6 +33,11 @@ public class ScanLine {
                 expectedQuantity, Math.max(0, quantity));
     }
 
+    public ScanLine withLocation(String newLocation) {
+        return new ScanLine(id, productId, productCode, productName, barcode, newLocation,
+                expectedQuantity, scannedQuantity);
+    }
+
     public boolean matches(String code) {
         if (code == null) return false;
         String c = code.trim();

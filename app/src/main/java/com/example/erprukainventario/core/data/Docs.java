@@ -61,6 +61,20 @@ public final class Docs {
         return result;
     }
 
+    /** Lee un mapa {clave: texto}, ej. ubicación por bodega. */
+    public static Map<String, String> strMap(DocumentSnapshot d, String field) {
+        Map<String, String> result = new HashMap<>();
+        Object v = d.get(field);
+        if (v instanceof Map) {
+            for (Map.Entry<?, ?> e : ((Map<?, ?>) v).entrySet()) {
+                if (e.getKey() != null && e.getValue() instanceof String && !((String) e.getValue()).isEmpty()) {
+                    result.put(e.getKey().toString(), (String) e.getValue());
+                }
+            }
+        }
+        return result;
+    }
+
     /** Convierte el campo "status" en un enum; si no existe o no calza, el valor por defecto. */
     public static <E extends Enum<E>> E status(DocumentSnapshot d, Class<E> type, E fallback) {
         // d.get + instanceof (no getString): getString lanza excepción si el campo no es texto.

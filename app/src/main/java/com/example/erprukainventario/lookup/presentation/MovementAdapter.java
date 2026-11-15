@@ -8,6 +8,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.erprukainventario.R;
 import com.example.erprukainventario.core.domain.Movement;
+import com.example.erprukainventario.core.domain.MovementType;
 import com.example.erprukainventario.databinding.ItemMovementBinding;
 
 import java.text.SimpleDateFormat;
@@ -38,7 +39,14 @@ public class MovementAdapter extends RecyclerView.Adapter<MovementAdapter.ViewHo
         ItemMovementBinding b = holder.b;
         b.tvType.setText(m.getType().getLabel());
         String when = m.getCreatedAt() != null ? format.format(m.getCreatedAt()) : "pendiente de sincronizar";
-        b.tvDetail.setText(m.getReference() + " · " + m.getUserName() + " · " + when);
+        String lot = m.getLot().isEmpty() ? "" : " · Lote " + m.getLot();
+        b.tvDetail.setText(m.getReference() + lot + " · " + m.getUserName() + " · " + when);
+        if (m.getType() == MovementType.REUBICACION) {
+            // No cambia el stock: se muestra cuántas unidades se trasladaron, sin signo.
+            b.tvQuantity.setText("⇄ " + Math.abs(m.getQuantity()));
+            b.tvQuantity.setTextColor(b.getRoot().getContext().getColor(R.color.text_accent));
+            return;
+        }
         b.tvQuantity.setText((m.getQuantity() > 0 ? "+" : "") + m.getQuantity());
         b.tvQuantity.setTextColor(b.getRoot().getContext().getColor(
                 m.getQuantity() >= 0 ? R.color.text_success : R.color.text_danger));

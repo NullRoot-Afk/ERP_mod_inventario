@@ -1,6 +1,7 @@
 package com.example.erprukainventario.reception.presentation;
 
 import android.Manifest;
+import android.app.DatePickerDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -27,8 +28,12 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.example.erprukainventario.R;
+import com.example.erprukainventario.core.domain.LocationCode;
+import com.example.erprukainventario.core.ui.PhotoCapture;
 import com.example.erprukainventario.databinding.ActivityReceptionScanningBinding;
+import com.example.erprukainventario.databinding.DialogDiscrepancyBinding;
 import com.example.erprukainventario.databinding.DialogQuantityInputBinding;
+import com.example.erprukainventario.reception.domain.Discrepancy;
 import com.example.erprukainventario.reception.domain.PurchaseOrderDetail;
 import com.example.erprukainventario.reception.domain.PurchaseOrderItem;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -37,6 +42,10 @@ import com.google.mlkit.vision.barcode.BarcodeScanning;
 import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.common.InputImage;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -51,6 +60,7 @@ public class ReceptionScanningActivity extends AppCompatActivity {
     private ActivityReceptionScanningBinding binding;
     private ReceptionScanningViewModel viewModel;
     private ReceptionScanningAdapter adapter;
+    private PhotoCapture photoCapture;
 
     private ExecutorService cameraExecutor;
     private BarcodeScanner barcodeScanner;
@@ -75,6 +85,11 @@ public class ReceptionScanningActivity extends AppCompatActivity {
         setContentView(binding.getRoot());
 
         viewModel = new ViewModelProvider(this).get(ReceptionScanningViewModel.class);
+        photoCapture = new PhotoCapture(this);
+        viewModel.getMessage().observe(this, event -> {
+            String text = event.consume();
+            if (text != null) Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+        });
         cameraExecutor = Executors.newSingleThreadExecutor();
         barcodeScanner = BarcodeScanning.getClient();
 
@@ -328,23 +343,109 @@ public class ReceptionScanningActivity extends AppCompatActivity {
             } catch (Exception ignored) {}
         });
 
+        // Lote, vencimiento y ubicación (guía §3 y §10). Son opcionales.
+        dialogBinding.llReceptionExtras.setVisibility(View.VISIBLE);
+        final Date[] expiry = {null};
+        dialogBinding.etExpiry.setOnClickListener(v -> pickExpiry(expiry, dialogBinding));
+        dialogBinding.btnReportDiscrepancy.setOnClickListener(v -> {
+            dialog.setOnDismissListener(null); // el escaneo sigue en pausa con el siguiente diálogo
+            dialog.dismiss();
+            showDiscrepancyDialog(item);
+        });
+
         dialogBinding.btnConfirmQuantity.setOnClickListener(v -> {
+            int qtyToAdd;
             try {
                 CharSequence text = dialogBinding.etQuantity.getText();
-                if (text != null) {
-                    int qtyToAdd = Integer.parseInt(text.toString().trim());
-                    if (qtyToAdd > 0) {
-                        viewModel.addQuantityToItem(item.getId(), qtyToAdd);
-                        Toast.makeText(this, "+" + qtyToAdd + " un. sumadas a " + item.getProductName(), Toast.LENGTH_SHORT).show();
-                        dialog.dismiss();
-                    }
-                }
-            } catch (Exception e) {
-                Toast.makeText(this, "Ingresa una cantidad válida.", Toast.LENGTH_SHORT).show();
+                qtyToAdd = text != null ? Integer.parseInt(text.toString().trim()) : 0;
+            } catch (NumberFormatException e) {
+                qtyToAdd = 0;
             }
+            if (qtyToAdd <= 0) {
+                Toast.makeText(this, "Ingresa una cantidad válida.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            String rawLocation = text(dialogBinding.etLocation);
+            String location = null;
+            if (!rawLocation.isEmpty()) {
+                location = LocationCode.normalize(rawLocation);
+                if (location == null) {
+                    dialogBinding.tilLocation.setError(getString(R.string.reception_location_invalid));
+                    return;
+                }
+            }
+            viewModel.addReceipt(item, qtyToAdd, text(dialogBinding.etLot), expiry[0], location);
+            Toast.makeText(this, "+" + qtyToAdd + " un. sumadas a " + item.getProductName(), Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
         });
 
         dialog.show();
+    }
+
+    private void pickExpiry(Date[] holder, DialogQuantityInputBinding b) {
+        Calendar c = Calendar.getInstance();
+        if (holder[0] != null) c.setTime(holder[0]);
+        new DatePickerDialog(this, (view, year, month, day) -> {
+            Calendar picked = Calendar.getInstance();
+            picked.clear();
+            picked.set(year, month, day);
+            holder[0] = picked.getTime();
+            b.etExpiry.setText(new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(holder[0]));
+        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show();
+    }
+
+    // ------------------------------------------------------------------
+    // Discrepancias con evidencia fotográfica
+    // ------------------------------------------------------------------
+
+    private void showDiscrepancyDialog(PurchaseOrderItem item) {
+        isScanningPaused = true;
+        DialogDiscrepancyBinding b = DialogDiscrepancyBinding.inflate(getLayoutInflater());
+        PurchaseOrderDetail detail = viewModel.getUiState().getValue() != null
+                ? viewModel.getUiState().getValue().orderDetail : null;
+        b.tvProduct.setText(item.getProductName() + (detail != null ? " · " + detail.getCode() : ""));
+
+        int missing = item.getOrderedQuantity() - item.getReceivedQuantity();
+        if (missing > 0) b.etQuantity.setText(String.valueOf(missing));
+
+        final byte[][] photo = {null};
+        b.btnPhoto.setOnClickListener(v -> photoCapture.take((jpeg, preview) -> {
+            photo[0] = jpeg;
+            b.ivPhoto.setImageBitmap(preview);
+            b.ivPhoto.setVisibility(View.VISIBLE);
+            b.btnPhoto.setText(R.string.discrepancy_retake_photo);
+        }));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(b.getRoot())
+                .setOnDismissListener(d -> isScanningPaused = false)
+                .create();
+
+        b.btnSave.setOnClickListener(v -> {
+            int qty;
+            try {
+                qty = Integer.parseInt(text(b.etQuantity));
+            } catch (NumberFormatException e) {
+                qty = 0;
+            }
+            if (qty <= 0) {
+                b.etQuantity.setError(getString(R.string.discrepancy_quantity_error));
+                return;
+            }
+            Discrepancy.Type type = b.rbSurplus.isChecked() ? Discrepancy.Type.SOBRANTE
+                    : b.rbDamaged.isChecked() ? Discrepancy.Type.DANADO : Discrepancy.Type.FALTANTE;
+            if (type == Discrepancy.Type.DANADO && photo[0] == null) {
+                Toast.makeText(this, R.string.discrepancy_photo_recommended, Toast.LENGTH_SHORT).show();
+            }
+            viewModel.reportDiscrepancy(item, type, qty, text(b.etNotes), photo[0]);
+            dialog.dismiss();
+        });
+        dialog.show();
+    }
+
+    private static String text(android.widget.TextView view) {
+        CharSequence t = view.getText();
+        return t != null ? t.toString().trim() : "";
     }
 
     @Override

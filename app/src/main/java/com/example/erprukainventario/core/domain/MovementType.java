@@ -8,7 +8,9 @@ public enum MovementType {
     AJUSTE("Ajuste"),
     TRANSFERENCIA_SALIDA("Transferencia (salida)"),
     TRANSFERENCIA_ENTRADA("Transferencia (entrada)"),
-    CONTEO("Conteo");
+    CONTEO("Conteo"),
+    /** Cambio de ubicación dentro de la bodega: no altera el stock (guía §4). */
+    REUBICACION("Reubicación");
 
     private final String label;
 

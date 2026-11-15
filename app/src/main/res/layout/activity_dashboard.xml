@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface_background"
+    android:orientation="vertical">
+
+    <!-- ===== Header ===== -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <ImageView
+            android:id="@+id/btnBack"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/cd_back"
+            android:src="@drawable/ic_arrow_back_24"
+            app:tint="@color/text_primary" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dashboard_title"
+                android:textColor="@color/text_primary"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                tools:text="Bodega central" />
+        </LinearLayout>
+
+        <ImageView
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_zenith_logo" />
+    </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:indeterminate="true"
+        android:visibility="gone" />
+
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="16dp"
+                android:paddingBottom="24dp">
+
+                <!-- ===== Indicadores ===== -->
+                <androidx.gridlayout.widget.GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:columnCount="2">
+
+                    <include
+                        android:id="@+id/kpiStock"
+                        layout="@layout/item_kpi_tile"
+                        android:layout_width="0dp"
+                        android:layout_height="104dp"
+                        android:layout_marginEnd="6dp"
+                        android:layout_marginBottom="12dp"
+                        app:layout_columnWeight="1"
+                        app:layout_gravity="fill_horizontal" />
+
+                    <include
+                        android:id="@+id/kpiLowStock"
+                        layout="@layout/item_kpi_tile"
+                        android:layout_width="0dp"
+                        android:layout_height="104dp"
+                        android:layout_marginStart="6dp"
+                        android:layout_marginBottom="12dp"
+                        app:layout_columnWeight="1"
+                        app:layout_gravity="fill_horizontal" />
+
+                    <include
+                        android:id="@+id/kpiDiscrepancies"
+                        layout="@layout/item_kpi_tile"
+                        android:layout_width="0dp"
+                        android:layout_height="104dp"
+                        android:layout_marginEnd="6dp"
+                        android:layout_marginBottom="12dp"
+                        app:layout_columnWeight="1"
+                        app:layout_gravity="fill_horizontal" />
+
+                    <include
+                        android:id="@+id/kpiLots"
+                        layout="@layout/item_kpi_tile"
+                        android:layout_width="0dp"
+                        android:layout_height="104dp"
+                        android:layout_marginStart="6dp"
+                        android:layout_marginBottom="12dp"
+                        app:layout_columnWeight="1"
+                        app:layout_gravity="fill_horizontal" />
+                </androidx.gridlayout.widget.GridLayout>
+
+                <!-- ===== Stock crítico ===== -->
+                <TextView
+                    style="@style/DashboardSection"
+                    android:text="@string/dashboard_low_stock" />
+
+                <TextView
+                    android:id="@+id/tvNoLowStock"
+                    style="@style/DashboardEmpty"
+                    android:text="@string/dashboard_no_low_stock" />
+
+                <LinearLayout
+                    android:id="@+id/llLowStock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <!-- ===== Vencimientos ===== -->
+                <TextView
+                    style="@style/DashboardSection"
+                    android:text="@string/dashboard_expiring" />
+
+                <TextView
+                    android:id="@+id/tvNoLots"
+                    style="@style/DashboardEmpty"
+                    android:text="@string/dashboard_no_expiring" />
+
+                <LinearLayout
+                    android:id="@+id/llLots"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <!-- ===== Discrepancias ===== -->
+                <TextView
+                    style="@style/DashboardSection"
+                    android:text="@string/dashboard_discrepancies" />
+
+                <TextView
+                    android:id="@+id/tvNoDiscrepancies"
+                    style="@style/DashboardEmpty"
+                    android:text="@string/dashboard_no_discrepancies" />
+
+                <LinearLayout
+                    android:id="@+id/llDiscrepancies"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnAdjustments"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="4dp"
+                    android:textAllCaps="false"
+                    android:textColor="@color/text_primary"
+                    app:cornerRadius="12dp"
+                    app:icon="@drawable/ic_adjustments_24"
+                    app:iconTint="@color/text_accent"
+                    app:strokeColor="@color/input_border"
+                    tools:text="Ver 2 ajustes pendientes de aprobación" />
+
+                <!-- ===== Productividad (solo supervisor) ===== -->
+                <LinearLayout
+                    android:id="@+id/sectionProductivity"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    tools:visibility="visible">
+
+                    <TextView
+                        style="@style/DashboardSection"
+                        android:text="@string/dashboard_productivity" />
+
+                    <TextView
+                        android:id="@+id/tvNoProductivity"
+                        style="@style/DashboardEmpty"
+                        android:text="@string/dashboard_no_productivity" />
+
+                    <LinearLayout
+                        android:id="@+id/llProductivity"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_card_default"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:visibility="gone" />
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+</LinearLayout>

@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Feedback vibratorio al escanear (permiso normal, no se pide en tiempo de ejecución) -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Alertas de tareas nuevas y vencimientos (Android 13+ lo pide en tiempo de ejecución) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
@@ -84,6 +86,26 @@
         <activity
             android:name=".adjustment.presentation.AdjustmentFormActivity"
             android:exported="false" />
+        <activity
+            android:name=".location.presentation.LocationStockActivity"
+            android:exported="false" />
+        <activity
+            android:name=".location.presentation.RelocationActivity"
+            android:exported="false" />
+        <activity
+            android:name=".dashboard.presentation.DashboardActivity"
+            android:exported="false" />
+
+        <!-- Fotos de evidencia: la app de cámara escribe en el caché de la app vía este proveedor. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

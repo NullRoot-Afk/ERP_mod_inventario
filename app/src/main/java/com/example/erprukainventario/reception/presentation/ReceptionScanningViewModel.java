@@ -7,8 +7,12 @@ import androidx.lifecycle.ViewModel;
 import com.example.erprukainventario.reception.data.ReceptionRepository;
 import com.example.erprukainventario.reception.domain.PurchaseOrderDetail;
 import com.example.erprukainventario.reception.domain.PurchaseOrderItem;
+import com.example.erprukainventario.reception.domain.Discrepancy;
+import com.example.erprukainventario.reception.domain.ReceiptEntry;
+import com.example.erprukainventario.core.ui.Event;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import javax.inject.Inject;
@@ -22,6 +26,9 @@ public class ReceptionScanningViewModel extends ViewModel {
     private final MutableLiveData<ReceptionScanningUiState> uiState = new MutableLiveData<>(new ReceptionScanningUiState());
 
     private String currentOrderId;
+    /** Lecturas confirmadas en esta sesión: al finalizar ingresan stock, lotes y ubicaciones. */
+    private final List<ReceiptEntry> receipts = new ArrayList<>();
+    private final MutableLiveData<Event<String>> message = new MutableLiveData<>();
 
     @Inject
     public ReceptionScanningViewModel(ReceptionRepository repository) {
@@ -30,6 +37,10 @@ public class ReceptionScanningViewModel extends ViewModel {
 
     public LiveData<ReceptionScanningUiState> getUiState() {
         return uiState;
+    }
+
+    public LiveData<Event<String>> getMessage() {
+        return message;
     }
 
     public void loadOrderDetail(String orderId) {
@@ -68,7 +79,25 @@ public class ReceptionScanningViewModel extends ViewModel {
         return null;
     }
 
-    public void addQuantityToItem(String itemId, int quantityToAdd) {
+    /** Suma unidades recibidas y registra la lectura con su lote, vencimiento y ubicación. */
+    public void addReceipt(PurchaseOrderItem item, int quantity, String lot, Date expiry, String location) {
+        if (item == null || quantity <= 0) return;
+        receipts.add(new ReceiptEntry(item.getId(), item.getProductCode(), item.getProductName(),
+                quantity, lot, expiry, location));
+        addQuantityToItem(item.getId(), quantity);
+    }
+
+    public void reportDiscrepancy(PurchaseOrderItem item, Discrepancy.Type type, int quantity, String notes,
+                                  byte[] photo) {
+        ReceptionScanningUiState current = uiState.getValue();
+        String orderCode = current != null && current.orderDetail != null ? current.orderDetail.getCode() : "";
+        repository.reportDiscrepancy(currentOrderId, orderCode, item, type, quantity, notes, photo, ok ->
+                message.setValue(new Event<>(ok
+                        ? "Discrepancia registrada" + (photo != null ? " con foto." : ".")
+                        : "No se pudo registrar la discrepancia.")));
+    }
+
+    private void addQuantityToItem(String itemId, int quantityToAdd) {
         ReceptionScanningUiState current = uiState.getValue();
         if (current == null || current.orderDetail == null) return;
 
@@ -139,10 +168,13 @@ public class ReceptionScanningViewModel extends ViewModel {
 
         uiState.setValue(current.withSaving());
 
-        repository.updateReceptionProgress(currentOrderId, current.orderDetail.getItems(), success -> {
+        List<ReceiptEntry> toSave = new ArrayList<>(receipts);
+        repository.finishReception(currentOrderId, current.orderDetail.getCode(), current.orderDetail.getItems(),
+                toSave, success -> {
             ReceptionScanningUiState state = uiState.getValue();
             if (state != null) {
                 if (success) {
+                    receipts.clear();
                     uiState.setValue(state.withFinished());
                 } else {
                     uiState.setValue(state.withError("Error al guardar la recepción en Firebase. Intenta nuevamente."));

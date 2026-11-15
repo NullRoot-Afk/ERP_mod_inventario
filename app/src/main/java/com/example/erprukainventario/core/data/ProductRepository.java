@@ -17,6 +17,9 @@ public interface ProductRepository {
     /** Historial del producto, del más reciente al más antiguo. */
     void getMovements(String productId, int limit, RepositoryCallback<List<Movement>> callback);
 
+    /** Movimientos de la bodega del usuario desde una fecha (productividad, guía §12). */
+    void getWarehouseMovements(java.util.Date since, RepositoryCallback<List<Movement>> callback);
+
     /** Bodegas de la empresa configurada. */
     void getWarehouses(RepositoryCallback<List<Warehouse>> callback);
 }

@@ -50,22 +50,14 @@ public class InventoryWriter {
 
     public void addMovement(WriteBatch batch, MovementType type, String productId, String productCode,
                             String productName, int quantity, String reference, String warehouseId) {
+        addMovement(batch, type, productId, productCode, productName, quantity, reference, warehouseId, null);
+    }
+
+    public void addMovement(WriteBatch batch, MovementType type, String productId, String productCode,
+                            String productName, int quantity, String reference, String warehouseId, String lot) {
         if (quantity == 0) return;
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("companyId", context.companyId());
-        data.put("warehouseId", warehouseId);
-        data.put("productId", productId != null ? productId : "");
-        data.put("productCode", productCode);
-        data.put("productName", productName);
-        data.put("type", type.name());
-        data.put("quantity", quantity);
-        data.put("reference", reference);
-        data.put("userId", context.userId());
-        data.put("userName", context.userName());
-        data.put("createdAt", FieldValue.serverTimestamp());
-
-        batch.set(firestore.collection(FirestoreCollections.MOVEMENTS).document(), data);
+        batch.set(firestore.collection(FirestoreCollections.MOVEMENTS).document(),
+                movementData(type, productId, productCode, productName, quantity, reference, warehouseId, lot));
     }
 
     /** Atajo: mueve stock y deja el movimiento firmado, en la bodega del usuario. */
@@ -78,5 +70,60 @@ public class InventoryWriter {
                       String productName, int delta, String reference, String warehouseId) {
         addStockChange(batch, productId, warehouseId, delta);
         addMovement(batch, type, productId, productCode, productName, delta, reference, warehouseId);
+    }
+
+    /** Igual que {@link #apply} pero registrando el lote del movimiento (recepción con lote). */
+    public void applyWithLot(WriteBatch batch, MovementType type, String productId, String productCode,
+                             String productName, int delta, String reference, String lot) {
+        addStockChange(batch, productId, context.warehouseId(), delta);
+        addMovement(batch, type, productId, productCode, productName, delta, reference, context.warehouseId(), lot);
+    }
+
+    /**
+     * Fija la ubicación del producto en la bodega del usuario (campo locations.{bodega}).
+     * No toca el stock.
+     */
+    public void setLocation(WriteBatch batch, String productId, String location) {
+        if (productId == null || productId.isEmpty() || location == null || location.isEmpty()) return;
+
+        Map<String, Object> locations = new HashMap<>();
+        locations.put(context.warehouseId(), location);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("companyId", context.companyId());
+        data.put("locations", locations);
+
+        batch.set(firestore.collection(FirestoreCollections.PRODUCTS).document(productId), data, SetOptions.merge());
+    }
+
+    /**
+     * Reubicación (guía §4): cambia la ubicación y deja la traza en MOVEMENTS.
+     * La cantidad registrada es el stock trasladado; el stock total no cambia.
+     */
+    public void relocate(WriteBatch batch, String productId, String productCode, String productName,
+                         int unitsMoved, String fromLocation, String toLocation) {
+        setLocation(batch, productId, toLocation);
+        batch.set(firestore.collection(FirestoreCollections.MOVEMENTS).document(),
+                movementData(MovementType.REUBICACION, productId, productCode, productName, unitsMoved,
+                        fromLocation + " → " + toLocation, context.warehouseId(), null));
+    }
+
+    private Map<String, Object> movementData(MovementType type, String productId, String productCode,
+                                             String productName, int quantity, String reference,
+                                             String warehouseId, String lot) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("companyId", context.companyId());
+        data.put("warehouseId", warehouseId);
+        data.put("productId", productId != null ? productId : "");
+        data.put("productCode", productCode);
+        data.put("productName", productName);
+        data.put("type", type.name());
+        data.put("quantity", quantity);
+        data.put("reference", reference);
+        if (lot != null && !lot.isEmpty()) data.put("lot", lot);
+        data.put("userId", context.userId());
+        data.put("userName", context.userName());
+        data.put("createdAt", FieldValue.serverTimestamp());
+        return data;
     }
 }

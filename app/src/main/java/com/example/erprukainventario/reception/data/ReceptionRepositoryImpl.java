@@ -3,6 +3,15 @@ package com.example.erprukainventario.reception.data;
 import com.example.erprukainventario.auth.data.RepositoryCallback;
 import com.example.erprukainventario.auth.data.TenantConfigLocalDataSource;
 import com.example.erprukainventario.auth.domain.Company;
+import com.example.erprukainventario.core.data.Docs;
+import com.example.erprukainventario.core.data.EvidenceRepository;
+import com.example.erprukainventario.core.data.FirestoreCollections;
+import com.example.erprukainventario.core.data.InventoryWriter;
+import com.example.erprukainventario.core.data.LotRepository;
+import com.example.erprukainventario.core.data.WorkContext;
+import com.example.erprukainventario.core.domain.MovementType;
+import com.example.erprukainventario.reception.domain.Discrepancy;
+import com.example.erprukainventario.reception.domain.ReceiptEntry;
 import com.example.erprukainventario.reception.domain.PurchaseOrder;
 import com.example.erprukainventario.reception.domain.PurchaseOrderDetail;
 import com.example.erprukainventario.reception.domain.PurchaseOrderItem;
@@ -57,12 +66,21 @@ public class ReceptionRepositoryImpl implements ReceptionRepository {
 
     private final TenantConfigLocalDataSource tenantConfig;
     private final FirebaseFirestore firestore;
+    private final InventoryWriter inventory;
+    private final LotRepository lots;
+    private final EvidenceRepository evidence;
+    private final WorkContext context;
 
     @Inject
-    public ReceptionRepositoryImpl(TenantConfigLocalDataSource tenantConfig,
-                                   FirebaseFirestore firestore) {
+    public ReceptionRepositoryImpl(TenantConfigLocalDataSource tenantConfig, FirebaseFirestore firestore,
+                                   InventoryWriter inventory, LotRepository lots,
+                                   EvidenceRepository evidence, WorkContext context) {
         this.tenantConfig = tenantConfig;
         this.firestore = firestore;
+        this.inventory = inventory;
+        this.lots = lots;
+        this.evidence = evidence;
+        this.context = context;
     }
 
     // ------------------------------------------------------------------
@@ -139,6 +157,15 @@ public class ReceptionRepositoryImpl implements ReceptionRepository {
             return;
         }
 
+        // Un solo batch: o se guardan todos los ítems y el estado, o ninguno.
+        WriteBatch batch = firestore.batch();
+        addProgress(batch, orderId, items);
+        batch.commit()
+                .addOnSuccessListener(v -> callback.onResult(true))
+                .addOnFailureListener(e -> callback.onResult(false));
+    }
+
+    private void addProgress(WriteBatch batch, String orderId, List<PurchaseOrderItem> items) {
         int totalOrdered = 0;
         int totalReceived = 0;
         for (PurchaseOrderItem item : items) {
@@ -151,16 +178,152 @@ public class ReceptionRepositoryImpl implements ReceptionRepository {
         else if (totalReceived >= totalOrdered) status = PurchaseOrderStatus.COMPLETA;
         else status = PurchaseOrderStatus.PARCIAL;
 
-        // Un solo batch: o se guardan todos los ítems y el estado, o ninguno.
         DocumentReference orderRef = firestore.collection(RECEPTIONS).document(orderId);
-        WriteBatch batch = firestore.batch();
         for (PurchaseOrderItem item : items) {
             batch.update(orderRef.collection(ITEMS).document(item.getId()),
                     "receivedQuantity", item.getReceivedQuantity());
         }
         batch.update(orderRef, "status", status.name());
+    }
+
+    @Override
+    public void finishReception(String orderId, String orderCode, List<PurchaseOrderItem> items,
+                                List<ReceiptEntry> receipts, RepositoryCallback<Boolean> callback) {
+        String companyId = context.companyId();
+        if (orderId == null || orderId.isEmpty() || items == null || companyId == null) {
+            callback.onResult(false);
+            return;
+        }
+        if (receipts == null || receipts.isEmpty()) {
+            updateReceptionProgress(orderId, items, callback);
+            return;
+        }
+
+        // Las líneas de la OC traen el SKU, no el id del producto: se resuelve contra
+        // el catálogo (funciona offline con el caché de Firestore).
+        firestore.collection(FirestoreCollections.PRODUCTS)
+                .whereEqualTo("companyId", companyId)
+                .get()
+                .addOnCompleteListener(task -> {
+                    Map<String, String> idByCode = new HashMap<>();
+                    if (task.isSuccessful() && task.getResult() != null) {
+                        for (DocumentSnapshot doc : task.getResult().getDocuments()) {
+                            idByCode.put(Docs.str(doc, doc.getId(), "code", "sku").toUpperCase(java.util.Locale.ROOT),
+                                    doc.getId());
+                        }
+                    }
+
+                    WriteBatch batch = firestore.batch();
+                    addProgress(batch, orderId, items);
+                    for (ReceiptEntry r : receipts) {
+                        String code = r.getProductCode() != null ? r.getProductCode() : "";
+                        String productId = idByCode.get(code.toUpperCase(java.util.Locale.ROOT));
+                        inventory.applyWithLot(batch, MovementType.RECEPCION, productId, code,
+                                r.getProductName(), r.getQuantity(), orderCode, r.getLot());
+                        lots.addLotReceipt(batch, productId, code, r.getProductName(), r.getLot(),
+                                r.getExpiryDate(), r.getQuantity(), orderCode);
+                        if (r.getLocation() != null) inventory.setLocation(batch, productId, r.getLocation());
+                    }
+                    batch.commit()
+                            .addOnSuccessListener(v -> callback.onResult(true))
+                            .addOnFailureListener(e -> callback.onResult(false));
+                });
+    }
+
+    // ------------------------------------------------------------------
+    // Discrepancias
+    // Modelo: DISCREPANCIES/{id} (companyId, warehouseId, receptionId, receptionCode, productCode,
+    //         productName, type, quantity, notes, evidenceId, status ABIERTA|RESUELTA,
+    //         createdByName, createdAt, resolvedByName, resolvedAt)
+    // ------------------------------------------------------------------
+
+    @Override
+    public void reportDiscrepancy(String orderId, String orderCode, PurchaseOrderItem item, Discrepancy.Type type,
+                                  int quantity, String notes, byte[] photoJpeg, RepositoryCallback<Boolean> callback) {
+        if (context.companyId() == null || item == null || type == null || quantity <= 0) {
+            callback.onResult(false);
+            return;
+        }
+        WriteBatch batch = firestore.batch();
+        String evidenceId = evidence.addPhoto(batch, photoJpeg);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("companyId", context.companyId());
+        data.put("warehouseId", context.warehouseId());
+        data.put("receptionId", orderId);
+        data.put("receptionCode", orderCode);
+        data.put("productCode", item.getProductCode());
+        data.put("productName", item.getProductName());
+        data.put("type", type.name());
+        data.put("quantity", quantity);
+        data.put("notes", notes != null ? notes : "");
+        data.put("evidenceId", evidenceId != null ? evidenceId : "");
+        data.put("status", "ABIERTA");
+        data.put("createdByName", context.userName());
+        data.put("createdAt", FieldValue.serverTimestamp());
+        batch.set(firestore.collection(FirestoreCollections.DISCREPANCIES).document(), data);
 
         batch.commit()
+                .addOnSuccessListener(v -> callback.onResult(true))
+                .addOnFailureListener(e -> callback.onResult(false));
+    }
+
+    @Override
+    public void getOpenDiscrepancies(RepositoryCallback<List<Discrepancy>> callback) {
+        String companyId = context.companyId();
+        if (companyId == null) {
+            callback.onResult(new ArrayList<>());
+            return;
+        }
+        firestore.collection(FirestoreCollections.DISCREPANCIES)
+                .whereEqualTo("companyId", companyId)
+                .whereEqualTo("warehouseId", context.warehouseId())
+                .whereEqualTo("status", "ABIERTA")
+                .get()
+                .addOnCompleteListener(task -> {
+                    List<Discrepancy> list = new ArrayList<>();
+                    if (task.isSuccessful() && task.getResult() != null) {
+                        for (DocumentSnapshot doc : task.getResult().getDocuments()) {
+                            Discrepancy.Type type;
+                            try {
+                                type = Discrepancy.Type.valueOf(Docs.str(doc, "FALTANTE", "type"));
+                            } catch (IllegalArgumentException e) {
+                                type = Discrepancy.Type.FALTANTE;
+                            }
+                            list.add(new Discrepancy(doc.getId(),
+                                    Docs.str(doc, "", "receptionCode"),
+                                    Docs.str(doc, "", "productCode"),
+                                    Docs.str(doc, "Producto", "productName"),
+                                    type,
+                                    Docs.num(doc, "quantity"),
+                                    Docs.str(doc, "", "notes"),
+                                    Docs.str(doc, "", "evidenceId"),
+                                    Docs.str(doc, "", "createdByName"),
+                                    Docs.date(doc, "createdAt")));
+                        }
+                        // Más recientes primero; sin fecha = recién creada offline.
+                        Collections.sort(list, (a, b) -> {
+                            if (a.getCreatedAt() == null && b.getCreatedAt() == null) return 0;
+                            if (a.getCreatedAt() == null) return -1;
+                            if (b.getCreatedAt() == null) return 1;
+                            return b.getCreatedAt().compareTo(a.getCreatedAt());
+                        });
+                    }
+                    callback.onResult(list);
+                });
+    }
+
+    @Override
+    public void resolveDiscrepancy(String discrepancyId, RepositoryCallback<Boolean> callback) {
+        if (discrepancyId == null || discrepancyId.isEmpty()) {
+            callback.onResult(false);
+            return;
+        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("status", "RESUELTA");
+        data.put("resolvedByName", context.userName());
+        data.put("resolvedAt", FieldValue.serverTimestamp());
+        firestore.collection(FirestoreCollections.DISCREPANCIES).document(discrepancyId).update(data)
                 .addOnSuccessListener(v -> callback.onResult(true))
                 .addOnFailureListener(e -> callback.onResult(false));
     }

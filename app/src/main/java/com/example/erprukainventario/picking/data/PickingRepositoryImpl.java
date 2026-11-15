@@ -6,8 +6,10 @@ import com.example.erprukainventario.auth.data.RepositoryCallback;
 import com.example.erprukainventario.core.data.DemoCatalog;
 import com.example.erprukainventario.core.data.Docs;
 import com.example.erprukainventario.core.data.FirestoreCollections;
+import com.example.erprukainventario.core.data.ProductRepository;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.core.domain.OperationResult;
+import com.example.erprukainventario.core.domain.Product;
 import com.example.erprukainventario.core.scan.ScanConfig;
 import com.example.erprukainventario.core.scan.ScanLine;
 import com.example.erprukainventario.core.scan.ScanLines;
@@ -51,12 +53,15 @@ public class PickingRepositoryImpl implements PickingRepository, ScanTaskSource 
     private final FirebaseFirestore firestore;
     private final WorkContext context;
     private final DemoCatalog catalog;
+    private final ProductRepository products;
 
     @Inject
-    public PickingRepositoryImpl(FirebaseFirestore firestore, WorkContext context, DemoCatalog catalog) {
+    public PickingRepositoryImpl(FirebaseFirestore firestore, WorkContext context, DemoCatalog catalog,
+                                 ProductRepository products) {
         this.firestore = firestore;
         this.context = context;
         this.catalog = catalog;
+        this.products = products;
     }
 
     @Override
@@ -136,8 +141,19 @@ public class PickingRepositoryImpl implements PickingRepository, ScanTaskSource 
                             .incompleteWarning("Hay productos sin recolectar por completo. El pedido quedará "
                                     + "como PARCIAL y lo faltante como backorder.")
                             .build();
-                    callback.onResult(new ScanTask(order.getId(), order.getCode(),
-                            order.getCustomerName(), ScanLines.sortedByLocation(lines), config));
+                    // La ruta usa la ubicación vigente del producto (pudo reubicarse después
+                    // de crear el pedido); si no se encuentra, la guardada en la línea.
+                    products.getProducts(all -> {
+                        Map<String, String> locationById = new HashMap<>();
+                        for (Product p : all) locationById.put(p.getId(), p.getLocation());
+                        List<ScanLine> routed = new ArrayList<>();
+                        for (ScanLine line : lines) {
+                            String current = locationById.get(line.getProductId());
+                            routed.add(current != null ? line.withLocation(current) : line);
+                        }
+                        callback.onResult(new ScanTask(order.getId(), order.getCode(),
+                                order.getCustomerName(), ScanLines.sortedByLocation(routed), config));
+                    });
                 })
                 .addOnFailureListener(e -> callback.onResult(null));
     }

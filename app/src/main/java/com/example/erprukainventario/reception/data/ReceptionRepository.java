@@ -1,6 +1,8 @@
 package com.example.erprukainventario.reception.data;
 
 import com.example.erprukainventario.auth.data.RepositoryCallback;
+import com.example.erprukainventario.reception.domain.Discrepancy;
+import com.example.erprukainventario.reception.domain.ReceiptEntry;
 import com.example.erprukainventario.reception.domain.PurchaseOrder;
 import com.example.erprukainventario.reception.domain.PurchaseOrderDetail;
 import com.example.erprukainventario.reception.domain.PurchaseOrderItem;
@@ -14,6 +16,19 @@ public interface ReceptionRepository {
 
     // UPDATE (avance de la recepción)
     void updateReceptionProgress(String orderId, List<PurchaseOrderItem> items, RepositoryCallback<Boolean> callback);
+
+    /**
+     * Guarda el avance y, en el mismo batch, ingresa el stock de cada lectura
+     * (movimiento RECEPCION), sus lotes/vencimientos y las ubicaciones asignadas.
+     */
+    void finishReception(String orderId, String orderCode, List<PurchaseOrderItem> items,
+                         List<ReceiptEntry> receipts, RepositoryCallback<Boolean> callback);
+
+    // Discrepancias de recepción (guía §3). photoJpeg puede ser null.
+    void reportDiscrepancy(String orderId, String orderCode, PurchaseOrderItem item, Discrepancy.Type type,
+                           int quantity, String notes, byte[] photoJpeg, RepositoryCallback<Boolean> callback);
+    void getOpenDiscrepancies(RepositoryCallback<List<Discrepancy>> callback);
+    void resolveDiscrepancy(String discrepancyId, RepositoryCallback<Boolean> callback);
 
     // CREATE / UPDATE / DELETE de órdenes. createOrder entrega el id nuevo, o null si falló.
     void createOrder(String code, String supplier, String eta, String notes, RepositoryCallback<String> callback);

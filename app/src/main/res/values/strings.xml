@@ -159,4 +159,96 @@
     <string name="lookup_stock_label_format">Stock en %1$s · mínimo %2$d</string>
     <string name="lookup_no_other_stock">Sin stock en otras bodegas</string>
     <string name="home_sync_status_loading">Sincronizando tareas…</string>
+    <string name="home_menu_ubicaciones">Ubicaciones</string>
+    <string name="home_menu_dashboard">Dashboard</string>
+    <string name="pending_sync">pendiente de sincronizar</string>
+
+    <!-- Ubicaciones / slotting (guía §4) -->
+    <string name="location_title">Stock por ubicación</string>
+    <string name="location_relocate">Reubicar</string>
+    <string name="location_search_hint">Ubicación (A-01), producto o SKU</string>
+    <string name="location_empty">No hay productos que calcen con la búsqueda</string>
+    <string name="location_product_detail_format">Ubicación: %1$s\nStock: %2$d un. · mínimo %3$d</string>
+    <string name="relocation_title">Reubicar producto</string>
+    <string name="relocation_step_product">Paso 1 de 2 · Escanea el producto</string>
+    <string name="relocation_step_location">Paso 2 de 2 · Escanea la ubicación destino</string>
+    <string name="relocation_hint">Las etiquetas de ubicación tienen el formato Zona-Pasillo-Estante[-Posición], ej. A-03-02-B (pueden venir como LOC:A-03-02-B).</string>
+    <string name="relocation_current">Ubicación actual</string>
+    <string name="relocation_change_product">Cambiar producto</string>
+    <string name="relocation_manual_location">Ingresar ubicación</string>
+    <string name="relocation_manual_location_short">Ubicación</string>
+    <string name="relocation_location_hint">Ej. A-03-02-B</string>
+    <string name="relocation_confirm_title">Confirmar reubicación</string>
+    <string name="relocation_confirm_format">%1$s\n\n%2$s → %3$s\n%4$d un. en esta bodega</string>
+    <string name="relocation_confirm">Reubicar</string>
+
+    <!-- Lotes y vencimientos (guía §10) -->
+    <string name="lookup_relocate">Reubicar producto</string>
+    <string name="lookup_lots">Lotes y vencimientos</string>
+    <string name="lookup_no_lots">Sin lotes registrados en esta bodega</string>
+    <string name="lot_expires_format">Vence %1$s</string>
+    <string name="lot_no_expiry">Sin vencimiento</string>
+    <string name="lot_retired">Retirado</string>
+    <string name="lot_expired_format">Vencido hace %1$d días</string>
+    <plurals name="lot_expiring_days">
+        <item quantity="one">Vence en %1$d día</item>
+        <item quantity="other">Vence en %1$d días</item>
+    </plurals>
+    <string name="lot_retire">Retirar</string>
+    <string name="lot_retire_title">Retirar lote</string>
+    <string name="lot_retire_message_format">El lote %1$s de %2$s se marcará como retirado y se creará un ajuste de -%3$d un. (producto vencido) que un supervisor debe aprobar.</string>
+
+    <!-- Recepción: lote, vencimiento, ubicación y discrepancias (guía §3) -->
+    <string name="reception_lot_hint">Lote (opcional)</string>
+    <string name="reception_expiry_hint">Vencimiento</string>
+    <string name="reception_location_hint">Ubicación de almacenamiento (opcional)</string>
+    <string name="reception_location_invalid">Formato: Zona-Pasillo-Estante[-Posición], ej. A-03-02-B</string>
+    <string name="reception_report_discrepancy">Reportar discrepancia (faltante, sobrante, dañado)</string>
+    <string name="discrepancy_title">Registrar discrepancia</string>
+    <string name="discrepancy_missing">Faltante</string>
+    <string name="discrepancy_surplus">Sobrante</string>
+    <string name="discrepancy_damaged">Dañado</string>
+    <string name="discrepancy_quantity_hint">Cantidad afectada</string>
+    <string name="discrepancy_quantity_error">Ingresa una cantidad mayor a 0</string>
+    <string name="discrepancy_notes_hint">Observaciones</string>
+    <string name="discrepancy_take_photo">Tomar foto de evidencia</string>
+    <string name="discrepancy_retake_photo">Tomar otra foto</string>
+    <string name="discrepancy_photo_cd">Foto de evidencia</string>
+    <string name="discrepancy_photo_recommended">Se recomienda adjuntar foto para productos dañados</string>
+    <string name="discrepancy_save">Guardar discrepancia</string>
+    <string name="discrepancy_view_photo">Ver foto</string>
+    <string name="discrepancy_resolve">Resuelta</string>
+    <string name="discrepancy_loading_photo">Cargando foto…</string>
+    <string name="discrepancy_photo_error">No se pudo cargar la foto.</string>
+
+    <!-- Dashboard (guía §12) -->
+    <string name="dashboard_title">Dashboard de bodega</string>
+    <string name="dashboard_title_operator">Alertas de bodega</string>
+    <string name="dashboard_kpi_stock">Stock actual</string>
+    <string name="dashboard_kpi_stock_sub">un. en %1$d productos</string>
+    <string name="dashboard_kpi_low_stock">Stock crítico</string>
+    <string name="dashboard_kpi_low_stock_sub">en o bajo el mínimo</string>
+    <string name="dashboard_kpi_discrepancies">Discrepancias</string>
+    <string name="dashboard_kpi_discrepancies_sub">%1$d ajustes · %2$d en recepción</string>
+    <string name="dashboard_kpi_lots">Lotes por vencer</string>
+    <string name="dashboard_kpi_lots_sub">en los próximos %1$d días</string>
+    <string name="dashboard_low_stock">Alertas de stock crítico</string>
+    <string name="dashboard_no_low_stock">Ningún producto bajo el mínimo</string>
+    <string name="dashboard_min_format">%1$s · mínimo %2$d</string>
+    <string name="dashboard_expiring">Lotes vencidos o por vencer</string>
+    <string name="dashboard_no_expiring">Sin lotes por vencer</string>
+    <string name="dashboard_discrepancies">Discrepancias de recepción</string>
+    <string name="dashboard_no_discrepancies">Sin discrepancias abiertas</string>
+    <string name="dashboard_adjustments_format">Ajustes pendientes de aprobación: %1$d</string>
+    <string name="dashboard_productivity">Productividad · últimos 7 días</string>
+    <string name="dashboard_no_productivity">Sin movimientos en los últimos 7 días</string>
+    <string name="dashboard_productivity_format">%1$d operaciones · %2$d un.</string>
+
+    <!-- Notificaciones (guía §13) -->
+    <string name="notif_channel_tasks">Tareas asignadas</string>
+    <string name="notif_channel_alerts">Alertas de stock y vencimientos</string>
+    <string name="notif_new_task">Nueva tarea asignada</string>
+    <string name="notif_new_tasks_format">%1$d tareas nuevas</string>
+    <string name="notif_daily_title">Alertas de bodega</string>
+    <string name="notif_daily_format">%1$d productos con stock crítico · %2$d lotes vencidos o por vencer</string>
 </resources>
