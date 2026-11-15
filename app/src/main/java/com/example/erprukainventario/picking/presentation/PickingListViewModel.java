@@ -76,9 +76,9 @@ public class PickingListViewModel extends TaskListViewModel<PickingOrder> {
             return;
         }
         boolean markInProgress = order.getStatus() == PickingStatus.PENDIENTE;
-        repository.assignToMe(order.getId(), markInProgress, ok -> {
-            if (ok) onTaken.run();
-            else showMessage("No se pudo tomar el pedido. Revisa tu conexión.");
+        repository.assignToMe(order.getId(), order.getAssignedToId(), markInProgress, result -> {
+            if (result.isSuccess()) onTaken.run();
+            else showMessage(result.getMessage());
         });
     }
 

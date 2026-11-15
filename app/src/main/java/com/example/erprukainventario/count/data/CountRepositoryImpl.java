@@ -8,6 +8,7 @@ import com.example.erprukainventario.auth.data.RepositoryCallback;
 import com.example.erprukainventario.core.data.DemoCatalog;
 import com.example.erprukainventario.core.data.Docs;
 import com.example.erprukainventario.core.data.FirestoreCollections;
+import com.example.erprukainventario.core.data.GuardedCommit;
 import com.example.erprukainventario.core.data.ProductRepository;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.core.domain.OperationResult;
@@ -60,10 +61,12 @@ public class CountRepositoryImpl implements CountRepository, ScanTaskSource {
     private final ProductRepository products;
     private final AdjustmentWriter adjustments;
     private final DemoCatalog catalog;
+    private final GuardedCommit guarded;
 
     @Inject
     public CountRepositoryImpl(FirebaseFirestore firestore, WorkContext context, ProductRepository products,
-                               AdjustmentWriter adjustments, DemoCatalog catalog) {
+                               AdjustmentWriter adjustments, DemoCatalog catalog, GuardedCommit guarded) {
+        this.guarded = guarded;
         this.firestore = firestore;
         this.context = context;
         this.products = products;
@@ -140,10 +143,8 @@ public class CountRepositoryImpl implements CountRepository, ScanTaskSource {
                 item.put("countedQuantity", 0);
                 batch.set(ref.collection(FirestoreCollections.ITEMS).document(), item);
             }
-            batch.commit()
-                    .addOnSuccessListener(v -> callback.onResult(OperationResult.ok(
-                            name + " programado con " + selected.size() + " productos.")))
-                    .addOnFailureListener(e -> callback.onResult(OperationResult.error("No se pudo crear el conteo.")));
+            guarded.commitLocally(batch, name + " programado con " + selected.size() + " productos.",
+                    "No se pudo crear el conteo.", callback);
         });
     }
 
@@ -212,18 +213,15 @@ public class CountRepositoryImpl implements CountRepository, ScanTaskSource {
     public void save(String taskId, List<ScanLine> lines, Map<String, String> extras,
                      RepositoryCallback<OperationResult> callback) {
         DocumentReference ref = firestore.collection(FirestoreCollections.COUNT_TASKS).document(taskId);
-        ref.get().addOnSuccessListener(doc -> {
-            if (!doc.exists() || toCount(doc).getStatus() == CountStatus.CERRADO) {
-                callback.onResult(OperationResult.error("El conteo ya fue cerrado por otro usuario."));
-                return;
-            }
-            String countName = toCount(doc).getName();
-            // Stock vigente al momento de cerrar.
-            products.getProducts(all -> {
-                Map<String, Product> byId = new HashMap<>();
-                for (Product p : all) byId.put(p.getId(), p);
+        // Stock vigente al momento de cerrar (se lee antes: la transacción no admite consultas).
+        products.getProducts(all -> {
+            Map<String, Product> byId = new HashMap<>();
+            for (Product p : all) byId.put(p.getId(), p);
 
-                WriteBatch batch = firestore.batch();
+            // Transacción: si dos operarios cierran el mismo conteo, solo uno genera ajustes.
+            guarded.run(ref, doc -> doc.exists() && toCount(doc).getStatus() != CountStatus.CERRADO
+                    ? null : "El conteo ya fue cerrado por otro usuario.", (doc, batch) -> {
+                String countName = toCount(doc).getName();
                 StringBuilder summary = new StringBuilder();
                 int differences = 0;
                 for (ScanLine line : lines) {
@@ -258,15 +256,12 @@ public class CountRepositoryImpl implements CountRepository, ScanTaskSource {
                 data.put("closedAt", FieldValue.serverTimestamp());
                 batch.update(ref, data);
 
-                final int totalDiff = differences;
-                batch.commit()
-                        .addOnSuccessListener(v -> callback.onResult(OperationResult.ok(totalDiff == 0
-                                ? "Conteo cerrado sin diferencias. ¡El stock calza!"
-                                : "Conteo cerrado con " + totalDiff + " diferencia(s). Se enviaron como ajustes "
-                                + "pendientes de aprobación:\n\n" + summary)))
-                        .addOnFailureListener(e -> callback.onResult(OperationResult.error("No se pudo cerrar el conteo.")));
-            });
-        }).addOnFailureListener(e -> callback.onResult(OperationResult.error("Sin conexión con el servidor.")));
+                return differences == 0
+                        ? "Conteo cerrado sin diferencias. ¡El stock calza!"
+                        : "Conteo cerrado con " + differences + " diferencia(s). Se enviaron como ajustes "
+                        + "pendientes de aprobación:\n\n" + summary;
+            }, "No se pudo cerrar el conteo.", callback);
+        });
     }
 
     // ------------------------------------------------------------------

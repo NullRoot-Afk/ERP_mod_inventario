@@ -6,6 +6,8 @@ import com.example.erprukainventario.auth.domain.Company;
 import com.example.erprukainventario.core.data.Docs;
 import com.example.erprukainventario.core.data.EvidenceRepository;
 import com.example.erprukainventario.core.data.FirestoreCollections;
+import com.example.erprukainventario.core.data.GuardedCommit;
+import com.example.erprukainventario.core.data.Writes;
 import com.example.erprukainventario.core.data.InventoryWriter;
 import com.example.erprukainventario.core.data.LotRepository;
 import com.example.erprukainventario.core.data.WorkContext;
@@ -70,11 +72,13 @@ public class ReceptionRepositoryImpl implements ReceptionRepository {
     private final LotRepository lots;
     private final EvidenceRepository evidence;
     private final WorkContext context;
+    private final GuardedCommit guarded;
 
     @Inject
     public ReceptionRepositoryImpl(TenantConfigLocalDataSource tenantConfig, FirebaseFirestore firestore,
                                    InventoryWriter inventory, LotRepository lots,
-                                   EvidenceRepository evidence, WorkContext context) {
+                                   EvidenceRepository evidence, WorkContext context, GuardedCommit guarded) {
+        this.guarded = guarded;
         this.tenantConfig = tenantConfig;
         this.firestore = firestore;
         this.inventory = inventory;
@@ -214,20 +218,44 @@ public class ReceptionRepositoryImpl implements ReceptionRepository {
                     }
 
                     WriteBatch batch = firestore.batch();
-                    addProgress(batch, orderId, items);
+                    Writes w = Writes.of(batch);
+                    DocumentReference orderRef = firestore.collection(RECEPTIONS).document(orderId);
+
+                    // Lo recibido se SUMA (incremento) en vez de escribir el total visto en pantalla:
+                    // si dos operarios reciben la misma OC a la vez, no se pisan (guía §11).
+                    Map<String, Integer> deltaByItem = new HashMap<>();
+                    for (ReceiptEntry r : receipts) {
+                        Integer prev = deltaByItem.get(r.getItemId());
+                        deltaByItem.put(r.getItemId(), (prev != null ? prev : 0) + r.getQuantity());
+                    }
+                    for (Map.Entry<String, Integer> e : deltaByItem.entrySet()) {
+                        w.update(orderRef.collection(ITEMS).document(e.getKey()),
+                                "receivedQuantity", FieldValue.increment(e.getValue()));
+                    }
+                    w.update(orderRef, "status", statusOf(items).name());
+
                     for (ReceiptEntry r : receipts) {
                         String code = r.getProductCode() != null ? r.getProductCode() : "";
                         String productId = idByCode.get(code.toUpperCase(java.util.Locale.ROOT));
-                        inventory.applyWithLot(batch, MovementType.RECEPCION, productId, code,
-                                r.getProductName(), r.getQuantity(), orderCode, r.getLot());
-                        lots.addLotReceipt(batch, productId, code, r.getProductName(), r.getLot(),
+                        inventory.apply(w, MovementType.RECEPCION, productId, code, r.getProductName(),
+                                r.getQuantity(), orderCode, context.warehouseId(), r.getLot());
+                        lots.addLotReceipt(w, productId, code, r.getProductName(), r.getLot(),
                                 r.getExpiryDate(), r.getQuantity(), orderCode);
-                        if (r.getLocation() != null) inventory.setLocation(batch, productId, r.getLocation());
+                        if (r.getLocation() != null) inventory.setLocation(w, productId, r.getLocation());
                     }
-                    batch.commit()
-                            .addOnSuccessListener(v -> callback.onResult(true))
-                            .addOnFailureListener(e -> callback.onResult(false));
+                    guarded.commitLocally(batch, "", "", result -> callback.onResult(result.isSuccess()));
                 });
+    }
+
+    private static PurchaseOrderStatus statusOf(List<PurchaseOrderItem> items) {
+        int ordered = 0;
+        int received = 0;
+        for (PurchaseOrderItem item : items) {
+            ordered += item.getOrderedQuantity();
+            received += item.getReceivedQuantity();
+        }
+        if (received <= 0) return PurchaseOrderStatus.SIN_INICIAR;
+        return received >= ordered ? PurchaseOrderStatus.COMPLETA : PurchaseOrderStatus.PARCIAL;
     }
 
     // ------------------------------------------------------------------
@@ -263,9 +291,7 @@ public class ReceptionRepositoryImpl implements ReceptionRepository {
         data.put("createdAt", FieldValue.serverTimestamp());
         batch.set(firestore.collection(FirestoreCollections.DISCREPANCIES).document(), data);
 
-        batch.commit()
-                .addOnSuccessListener(v -> callback.onResult(true))
-                .addOnFailureListener(e -> callback.onResult(false));
+        guarded.commitLocally(batch, "", "", result -> callback.onResult(result.isSuccess()));
     }
 
     @Override
@@ -323,9 +349,9 @@ public class ReceptionRepositoryImpl implements ReceptionRepository {
         data.put("status", "RESUELTA");
         data.put("resolvedByName", context.userName());
         data.put("resolvedAt", FieldValue.serverTimestamp());
-        firestore.collection(FirestoreCollections.DISCREPANCIES).document(discrepancyId).update(data)
-                .addOnSuccessListener(v -> callback.onResult(true))
-                .addOnFailureListener(e -> callback.onResult(false));
+        WriteBatch batch = firestore.batch();
+        batch.update(firestore.collection(FirestoreCollections.DISCREPANCIES).document(discrepancyId), data);
+        guarded.commitLocally(batch, "", "", result -> callback.onResult(result.isSuccess()));
     }
 
     // ------------------------------------------------------------------

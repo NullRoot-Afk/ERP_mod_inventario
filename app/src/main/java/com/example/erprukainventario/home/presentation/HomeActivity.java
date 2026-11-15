@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 
+import com.example.erprukainventario.core.data.SyncStatusMonitor;
 import com.example.erprukainventario.dashboard.presentation.DashboardActivity;
 import com.example.erprukainventario.location.presentation.LocationStockActivity;
 import com.example.erprukainventario.notifications.TaskAlertsScheduler;
@@ -39,6 +40,9 @@ public class HomeActivity extends AppCompatActivity {
 
     @Inject
     TaskAlertsScheduler taskAlerts;
+
+    @Inject
+    SyncStatusMonitor syncMonitor;
 
     // Si lo rechaza, la app funciona igual: el contador de tareas del inicio sigue visible.
     private final ActivityResultLauncher<String> notificationPermission =
@@ -112,6 +116,7 @@ public class HomeActivity extends AppCompatActivity {
         super.onResume();
         // Al volver de cualquier módulo, el contador refleja lo recién hecho.
         viewModel.refreshPendingTasks();
+        syncMonitor.refresh();
     }
 
     private void configureMenuButton(ItemHomeMenuButtonBinding buttonBinding, int iconRes, String label, Runnable onClick) {
@@ -125,9 +130,48 @@ public class HomeActivity extends AppCompatActivity {
             binding.tvGreeting.setText(getString(R.string.home_greeting_format, state.greetingName));
             binding.tvRoleWarehouse.setText(state.roleLabel + " · " + state.warehouseName);
             binding.tvAvatar.setText(state.initials);
-            binding.tvSyncStatus.setText(state.pendingTasksCount < 0
-                    ? getString(R.string.home_sync_status_loading)
-                    : getString(R.string.home_sync_status_format, state.pendingTasksCount));
+            renderSyncBanner();
         });
+        syncMonitor.getState().observe(this, s -> renderSyncBanner());
+    }
+
+    /** Estado de conexión/cola offline (guía §11) + tareas asignadas. */
+    private void renderSyncBanner() {
+        HomeUiState state = viewModel.getUiState().getValue();
+        SyncStatusMonitor.State sync = syncMonitor.getState().getValue();
+        if (state == null || sync == null) return;
+
+        String tasks = state.pendingTasksCount < 0 ? "" : " · " + getResources().getQuantityString(
+                R.plurals.home_tasks_count, state.pendingTasksCount, state.pendingTasksCount);
+        String text;
+        int icon;
+        int color;
+        switch (sync) {
+            case OFFLINE:
+                text = getString(R.string.home_sync_offline) + tasks;
+                icon = R.drawable.ic_wifi_off_24;
+                color = R.color.text_warning;
+                break;
+            case OFFLINE_PENDING:
+                text = getString(R.string.home_sync_offline_pending);
+                icon = R.drawable.ic_wifi_off_24;
+                color = R.color.text_warning;
+                break;
+            case SYNCING:
+                text = getString(R.string.home_sync_syncing) + tasks;
+                icon = R.drawable.ic_clock_24;
+                color = R.color.text_accent;
+                break;
+            default:
+                text = state.pendingTasksCount < 0
+                        ? getString(R.string.home_sync_status_loading)
+                        : getString(R.string.home_sync_status_format, state.pendingTasksCount);
+                icon = R.drawable.ic_check_circle_24;
+                color = R.color.text_accent;
+        }
+        binding.tvSyncStatus.setText(text);
+        binding.ivSyncIcon.setImageResource(icon);
+        androidx.core.widget.ImageViewCompat.setImageTintList(binding.ivSyncIcon,
+                android.content.res.ColorStateList.valueOf(getColor(color)));
     }
 }

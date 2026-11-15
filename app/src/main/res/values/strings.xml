@@ -162,6 +162,14 @@
     <string name="home_menu_ubicaciones">Ubicaciones</string>
     <string name="home_menu_dashboard">Dashboard</string>
     <string name="pending_sync">pendiente de sincronizar</string>
+    <string name="home_sync_offline">Sin conexión · trabajando offline</string>
+    <string name="home_sync_offline_pending">Sin conexión · cambios guardados en el dispositivo, se enviarán al volver la red</string>
+    <string name="home_sync_syncing">Sincronizando cambios…</string>
+    <plurals name="home_tasks_count">
+        <item quantity="one">%1$d tarea</item>
+        <item quantity="other">%1$d tareas</item>
+    </plurals>
+    <string name="lot_depleted">Agotado</string>
 
     <!-- Ubicaciones / slotting (guía §4) -->
     <string name="location_title">Stock por ubicación</string>

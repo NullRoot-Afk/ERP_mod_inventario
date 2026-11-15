@@ -3,7 +3,9 @@ package com.example.erprukainventario.dispatch.data;
 import com.example.erprukainventario.auth.data.RepositoryCallback;
 import com.example.erprukainventario.core.data.Docs;
 import com.example.erprukainventario.core.data.FirestoreCollections;
+import com.example.erprukainventario.core.data.GuardedCommit;
 import com.example.erprukainventario.core.data.InventoryWriter;
+import com.example.erprukainventario.core.data.LotRepository;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.core.domain.MovementType;
 import com.example.erprukainventario.core.domain.OperationResult;
@@ -46,16 +48,23 @@ public class DispatchRepositoryImpl implements DispatchRepository, ScanTaskSourc
 
     public static final String PROMPT_CARRIER = "Transportista";
     public static final String PROMPT_PLATE = "Patente del vehículo";
+    /** Verificación de bultos/pallets antes de la salida (guía §6). */
+    public static final String PROMPT_PACKAGES = "N° de bultos/pallets";
 
     private final FirebaseFirestore firestore;
     private final WorkContext context;
     private final InventoryWriter inventory;
+    private final LotRepository lots;
+    private final GuardedCommit guarded;
 
     @Inject
-    public DispatchRepositoryImpl(FirebaseFirestore firestore, WorkContext context, InventoryWriter inventory) {
+    public DispatchRepositoryImpl(FirebaseFirestore firestore, WorkContext context, InventoryWriter inventory,
+                                  LotRepository lots, GuardedCommit guarded) {
         this.firestore = firestore;
         this.context = context;
         this.inventory = inventory;
+        this.lots = lots;
+        this.guarded = guarded;
     }
 
     @Override
@@ -96,7 +105,7 @@ public class DispatchRepositoryImpl implements DispatchRepository, ScanTaskSourc
                             .quantityLabel("Cantidad verificada")
                             .finishLabel("Confirmar despacho")
                             .requireComplete()
-                            .finishPrompts(PROMPT_CARRIER, PROMPT_PLATE)
+                            .finishPrompts(PROMPT_CARRIER, PROMPT_PLATE, PROMPT_PACKAGES)
                             .build();
                     callback.onResult(new ScanTask(order.getId(), order.getCode(),
                             order.getCustomerName(), ScanLines.sortedByLocation(lines), config));
@@ -108,56 +117,77 @@ public class DispatchRepositoryImpl implements DispatchRepository, ScanTaskSourc
     public void save(String taskId, List<ScanLine> lines, Map<String, String> extras,
                      RepositoryCallback<OperationResult> callback) {
         DocumentReference orderRef = firestore.collection(FirestoreCollections.PICKING_ORDERS).document(taskId);
-        orderRef.get().addOnSuccessListener(doc -> {
-            if (!doc.exists()) {
-                callback.onResult(OperationResult.error("El pedido ya no existe."));
-                return;
-            }
-            PickingOrder order = PickingMapper.toOrder(doc);
-            // Evita despachar dos veces si otro dispositivo se adelantó.
-            if (!order.getStatus().isReadyToDispatch()) {
-                callback.onResult(OperationResult.error("El pedido ya fue despachado por otro usuario."));
-                return;
-            }
+        String guide = newGuideNumber();
+        String carrier = value(extras, PROMPT_CARRIER);
+        String plate = value(extras, PROMPT_PLATE).toUpperCase(Locale.ROOT);
+        int packages = Math.max(0, parseInt(value(extras, PROMPT_PACKAGES)));
 
-            String guide = newGuideNumber();
-            String carrier = value(extras, PROMPT_CARRIER);
-            String plate = value(extras, PROMPT_PLATE).toUpperCase(Locale.ROOT);
+        Map<String, Integer> quantities = new HashMap<>();
+        for (ScanLine line : lines) {
+            if (line.getScannedQuantity() <= 0 || line.getProductId().isEmpty()) continue;
+            Integer prev = quantities.get(line.getProductId());
+            quantities.put(line.getProductId(), (prev != null ? prev : 0) + line.getScannedQuantity());
+        }
 
-            WriteBatch batch = firestore.batch();
-            int units = 0;
-            for (ScanLine line : lines) {
-                units += line.getScannedQuantity();
-                batch.update(orderRef.collection(FirestoreCollections.ITEMS).document(line.getId()),
-                        "verifiedQuantity", line.getScannedQuantity());
-                inventory.apply(batch, MovementType.DESPACHO, line.getProductId(), line.getProductCode(),
-                        line.getProductName(), -line.getScannedQuantity(), guide + " / " + order.getCode());
-            }
+        // FEFO (guía §10): sale primero lo que vence antes. El plan se calcula antes de la
+        // transacción porque ésta no admite consultas; los descuentos de lote son incrementos.
+        lots.planFefo(quantities, plan -> guarded.run(orderRef,
+                doc -> {
+                    if (!doc.exists()) return "El pedido ya no existe.";
+                    return PickingMapper.toOrder(doc).getStatus().isReadyToDispatch()
+                            ? null : "El pedido ya fue despachado por otro usuario.";
+                },
+                (doc, w) -> {
+                    PickingOrder order = PickingMapper.toOrder(doc);
+                    int units = 0;
+                    StringBuilder lotSummary = new StringBuilder();
+                    java.util.Set<String> consumed = new java.util.HashSet<>();
+                    for (ScanLine line : lines) {
+                        units += line.getScannedQuantity();
+                        w.update(orderRef.collection(FirestoreCollections.ITEMS).document(line.getId()),
+                                "verifiedQuantity", line.getScannedQuantity());
+                        // Si un producto viene en varias líneas, sus lotes se descuentan una sola vez.
+                        String lotLabel = consumed.add(line.getProductId())
+                                ? lots.applyTakes(w, plan.get(line.getProductId())) : null;
+                        inventory.apply(w, MovementType.DESPACHO, line.getProductId(), line.getProductCode(),
+                                line.getProductName(), -line.getScannedQuantity(), guide + " / " + order.getCode(),
+                                context.warehouseId(), lotLabel);
+                        if (lotLabel != null) {
+                            lotSummary.append("\n• ").append(line.getProductName()).append(": ").append(lotLabel);
+                        }
+                    }
 
-            Map<String, Object> data = new HashMap<>();
-            data.put("status", PickingStatus.DESPACHADO.name());
-            data.put("guideNumber", guide);
-            data.put("carrier", carrier);
-            data.put("plate", plate);
-            data.put("dispatchedAt", FieldValue.serverTimestamp());
-            data.put("dispatchedById", context.userId());
-            data.put("dispatchedByName", context.userName());
-            data.put("backorder", order.getStatus() == PickingStatus.PARCIAL);
-            batch.update(orderRef, data);
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("status", PickingStatus.DESPACHADO.name());
+                    data.put("guideNumber", guide);
+                    data.put("carrier", carrier);
+                    data.put("plate", plate);
+                    data.put("packages", packages);
+                    data.put("dispatchedAt", FieldValue.serverTimestamp());
+                    data.put("dispatchedById", context.userId());
+                    data.put("dispatchedByName", context.userName());
+                    data.put("backorder", order.getStatus() == PickingStatus.PARCIAL);
+                    w.update(orderRef, data);
 
-            final int totalUnits = units;
-            batch.commit()
-                    .addOnSuccessListener(v -> callback.onResult(OperationResult.ok(
-                            "Guía de despacho " + guide + " generada.\n\n"
-                                    + "Pedido: " + order.getCode() + " · " + order.getCustomerName() + "\n"
-                                    + "Transportista: " + carrier + "\n"
-                                    + "Patente: " + plate + "\n"
-                                    + "Total: " + totalUnits + " un. en " + lines.size() + " líneas"
-                                    + (order.getStatus() == PickingStatus.PARCIAL
-                                    ? "\n\nDespacho parcial: lo no recolectado queda como backorder." : ""))))
-                    .addOnFailureListener(e -> callback.onResult(
-                            OperationResult.error("No se pudo registrar el despacho.")));
-        }).addOnFailureListener(e -> callback.onResult(OperationResult.error("Sin conexión con el servidor.")));
+                    return "Guía de despacho " + guide + " generada.\n\n"
+                            + "Pedido: " + order.getCode() + " · " + order.getCustomerName() + "\n"
+                            + "Transportista: " + carrier + "\n"
+                            + "Patente: " + plate + "\n"
+                            + "Bultos/pallets: " + packages + "\n"
+                            + "Total: " + units + " un. en " + lines.size() + " líneas"
+                            + (lotSummary.length() > 0 ? "\n\nLotes despachados (FEFO):" + lotSummary : "")
+                            + (order.getStatus() == PickingStatus.PARCIAL
+                            ? "\n\nDespacho parcial: lo no recolectado queda como backorder." : "");
+                },
+                "No se pudo registrar el despacho.", callback));
+    }
+
+    private static int parseInt(String s) {
+        try {
+            return Integer.parseInt(s.replaceAll("[^0-9]", ""));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     /** GD-AAMMDD-HHMMSS: único por segundo y legible para el transportista. */

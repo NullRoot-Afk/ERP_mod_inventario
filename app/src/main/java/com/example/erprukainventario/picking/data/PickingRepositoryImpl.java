@@ -6,9 +6,12 @@ import com.example.erprukainventario.auth.data.RepositoryCallback;
 import com.example.erprukainventario.core.data.DemoCatalog;
 import com.example.erprukainventario.core.data.Docs;
 import com.example.erprukainventario.core.data.FirestoreCollections;
+import com.example.erprukainventario.core.data.GuardedCommit;
+import com.example.erprukainventario.core.data.LotRepository;
 import com.example.erprukainventario.core.data.ProductRepository;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.core.domain.OperationResult;
+import com.example.erprukainventario.core.domain.Lot;
 import com.example.erprukainventario.core.domain.Product;
 import com.example.erprukainventario.core.scan.ScanConfig;
 import com.example.erprukainventario.core.scan.ScanLine;
@@ -26,10 +29,12 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.firestore.WriteBatch;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -54,14 +59,18 @@ public class PickingRepositoryImpl implements PickingRepository, ScanTaskSource 
     private final WorkContext context;
     private final DemoCatalog catalog;
     private final ProductRepository products;
+    private final LotRepository lots;
+    private final GuardedCommit guarded;
 
     @Inject
     public PickingRepositoryImpl(FirebaseFirestore firestore, WorkContext context, DemoCatalog catalog,
-                                 ProductRepository products) {
+                                 ProductRepository products, LotRepository lots, GuardedCommit guarded) {
         this.firestore = firestore;
         this.context = context;
         this.catalog = catalog;
         this.products = products;
+        this.lots = lots;
+        this.guarded = guarded;
     }
 
     @Override
@@ -96,15 +105,30 @@ public class PickingRepositoryImpl implements PickingRepository, ScanTaskSource 
     }
 
     @Override
-    public void assignToMe(String orderId, boolean markInProgress, RepositoryCallback<Boolean> callback) {
-        Map<String, Object> data = new HashMap<>();
-        data.put("assignedToId", context.userId());
-        data.put("assignedToName", context.userName());
-        if (markInProgress) data.put("status", PickingStatus.EN_PROCESO.name());
-        firestore.collection(FirestoreCollections.PICKING_ORDERS).document(orderId)
-                .update(data)
-                .addOnSuccessListener(v -> callback.onResult(true))
-                .addOnFailureListener(e -> callback.onResult(false));
+    public void assignToMe(String orderId, String expectedAssigneeId, boolean markInProgress,
+                           RepositoryCallback<OperationResult> callback) {
+        DocumentReference ref = firestore.collection(FirestoreCollections.PICKING_ORDERS).document(orderId);
+        String expected = expectedAssigneeId != null ? expectedAssigneeId : "";
+        guarded.run(ref, doc -> {
+            if (!doc.exists()) return "El pedido ya no existe.";
+            PickingOrder current = PickingMapper.toOrder(doc);
+            if (!current.getStatus().isPickable()) return "El pedido ya está " + current.getStatus().getLabel().toLowerCase(Locale.ROOT) + ".";
+            String now = current.getAssignedToId();
+            // Alguien lo tomó después de que el usuario vio la lista.
+            if (!now.equals(expected) && !current.isAssignedTo(context.userId())) {
+                return current.getAssignedToName() + " acaba de tomar este pedido.";
+            }
+            return null;
+        }, (doc, w) -> {
+            Map<String, Object> data = new HashMap<>();
+            data.put("assignedToId", context.userId());
+            data.put("assignedToName", context.userName());
+            if (markInProgress && PickingMapper.toOrder(doc).getStatus() == PickingStatus.PENDIENTE) {
+                data.put("status", PickingStatus.EN_PROCESO.name());
+            }
+            w.update(ref, data);
+            return "Pedido asignado a ti.";
+        }, "No se pudo tomar el pedido.", callback);
     }
 
     // ------------------------------------------------------------------
@@ -143,17 +167,29 @@ public class PickingRepositoryImpl implements PickingRepository, ScanTaskSource 
                             .build();
                     // La ruta usa la ubicación vigente del producto (pudo reubicarse después
                     // de crear el pedido); si no se encuentra, la guardada en la línea.
-                    products.getProducts(all -> {
+                    // Además se sugiere el lote que vence primero (FEFO, guía §10).
+                    products.getProducts(all -> lots.getActiveLots(activeLots -> {
                         Map<String, String> locationById = new HashMap<>();
                         for (Product p : all) locationById.put(p.getId(), p.getLocation());
+                        Map<String, Lot> firstLot = new HashMap<>();
+                        for (Lot lot : activeLots) { // ya vienen ordenados por vencimiento
+                            if (!firstLot.containsKey(lot.getProductId())) firstLot.put(lot.getProductId(), lot);
+                        }
+                        SimpleDateFormat fmt = new SimpleDateFormat("dd/MM", Locale.getDefault());
                         List<ScanLine> routed = new ArrayList<>();
                         for (ScanLine line : lines) {
                             String current = locationById.get(line.getProductId());
-                            routed.add(current != null ? line.withLocation(current) : line);
+                            String location = current != null ? current : line.getLocation();
+                            Lot lot = firstLot.get(line.getProductId());
+                            if (lot != null) {
+                                location += " · Lote " + lot.getLotNumber()
+                                        + (lot.getExpiryDate() != null ? " (vence " + fmt.format(lot.getExpiryDate()) + ")" : "");
+                            }
+                            routed.add(line.withLocation(location));
                         }
                         callback.onResult(new ScanTask(order.getId(), order.getCode(),
                                 order.getCustomerName(), ScanLines.sortedByLocation(routed), config));
-                    });
+                    }));
                 })
                 .addOnFailureListener(e -> callback.onResult(null));
     }
@@ -161,45 +197,52 @@ public class PickingRepositoryImpl implements PickingRepository, ScanTaskSource 
     @Override
     public void save(String taskId, List<ScanLine> lines, Map<String, String> extras,
                      RepositoryCallback<OperationResult> callback) {
-        int requested = 0;
-        int picked = 0;
-        DocumentReference orderRef = firestore.collection(FirestoreCollections.PICKING_ORDERS).document(taskId);
-        WriteBatch batch = firestore.batch();
+        int requestedSum = 0;
+        int pickedSum = 0;
         for (ScanLine line : lines) {
-            requested += line.getExpectedQuantity();
-            picked += line.getScannedQuantity();
-            batch.update(orderRef.collection(FirestoreCollections.ITEMS).document(line.getId()),
-                    "pickedQuantity", line.getScannedQuantity());
+            requestedSum += line.getExpectedQuantity();
+            pickedSum += line.getScannedQuantity();
         }
+        final int requested = requestedSum;
+        final int picked = pickedSum;
+        final PickingStatus status = picked <= 0 ? PickingStatus.EN_PROCESO
+                : picked >= requested ? PickingStatus.PREPARADO : PickingStatus.PARCIAL;
 
-        PickingStatus status;
-        if (picked <= 0) status = PickingStatus.EN_PROCESO;
-        else if (picked >= requested) status = PickingStatus.PREPARADO;
-        else status = PickingStatus.PARCIAL;
+        DocumentReference orderRef = firestore.collection(FirestoreCollections.PICKING_ORDERS).document(taskId);
+        guarded.run(orderRef, doc -> {
+            if (!doc.exists()) return "El pedido ya no existe.";
+            PickingOrder current = PickingMapper.toOrder(doc);
+            if (!current.getStatus().isPickable() && current.getStatus() != PickingStatus.PREPARADO) {
+                return "El pedido ya fue " + current.getStatus().getLabel().toLowerCase(Locale.ROOT) + " por otro usuario.";
+            }
+            if (current.getStatus() == PickingStatus.PREPARADO && !current.isAssignedTo(context.userId())) {
+                return current.getAssignedToName() + " ya terminó de preparar este pedido.";
+            }
+            if (!current.getAssignedToId().isEmpty() && !current.isAssignedTo(context.userId())) {
+                return current.getAssignedToName() + " tomó este pedido mientras lo preparabas. "
+                        + "Vuelve a la lista para ver su avance.";
+            }
+            return null;
+        }, (doc, w) -> {
+            for (ScanLine line : lines) {
+                w.update(orderRef.collection(FirestoreCollections.ITEMS).document(line.getId()),
+                        "pickedQuantity", line.getScannedQuantity());
+            }
+            Map<String, Object> order = new HashMap<>();
+            order.put("status", status.name());
+            order.put("assignedToId", context.userId());
+            order.put("assignedToName", context.userName());
+            order.put("pickedAt", FieldValue.serverTimestamp());
+            w.update(orderRef, order);
 
-        Map<String, Object> order = new HashMap<>();
-        order.put("status", status.name());
-        order.put("assignedToId", context.userId());
-        order.put("assignedToName", context.userName());
-        order.put("pickedAt", FieldValue.serverTimestamp());
-        batch.update(orderRef, order);
-
-        final int pickedUnits = picked;
-        final int backorder = requested - picked;
-        batch.commit()
-                .addOnSuccessListener(v -> {
-                    String message;
-                    if (status == PickingStatus.PREPARADO) {
-                        message = "Pedido preparado (" + pickedUnits + " un.). Ya está disponible en Despacho.";
-                    } else if (status == PickingStatus.PARCIAL) {
-                        message = "Pedido parcial: " + pickedUnits + " un. recolectadas, " + backorder
-                                + " un. quedan como backorder. Puedes despacharlo parcial o completarlo después.";
-                    } else {
-                        message = "Avance guardado. El pedido sigue asignado a ti.";
-                    }
-                    callback.onResult(OperationResult.ok(message));
-                })
-                .addOnFailureListener(e -> callback.onResult(OperationResult.error("No se pudo guardar el picking.")));
+            if (status == PickingStatus.PREPARADO) {
+                return "Pedido preparado (" + picked + " un.). Ya está disponible en Despacho.";
+            } else if (status == PickingStatus.PARCIAL) {
+                return "Pedido parcial: " + picked + " un. recolectadas, " + (requested - picked)
+                        + " un. quedan como backorder. Puedes despacharlo parcial o completarlo después.";
+            }
+            return "Avance guardado. El pedido sigue asignado a ti.";
+        }, "No se pudo guardar el picking.", callback);
     }
 
     // ------------------------------------------------------------------

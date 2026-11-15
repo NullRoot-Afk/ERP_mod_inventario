@@ -49,6 +49,8 @@ public final class LotViews {
 
             if (lot.isRetired()) {
                 badge(b, ctx.getString(R.string.lot_retired), R.drawable.bg_badge_neutral, R.color.text_secondary);
+            } else if (lot.getQuantity() <= 0) {
+                badge(b, ctx.getString(R.string.lot_depleted), R.drawable.bg_badge_neutral, R.color.text_secondary);
             } else if (lot.isExpired()) {
                 badge(b, ctx.getString(R.string.lot_expired_format, -lot.daysToExpiry()),
                         R.drawable.bg_badge_danger, R.color.text_danger);

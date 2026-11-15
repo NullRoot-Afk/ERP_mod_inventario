@@ -3,6 +3,7 @@ package com.example.erprukainventario.adjustment.data;
 import com.example.erprukainventario.adjustment.domain.AdjustmentReason;
 import com.example.erprukainventario.adjustment.domain.AdjustmentStatus;
 import com.example.erprukainventario.core.data.FirestoreCollections;
+import com.example.erprukainventario.core.data.Writes;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -32,6 +33,11 @@ public class AdjustmentWriter {
 
     public void addPending(WriteBatch batch, String productId, String productCode, String productName,
                            int signedQuantity, AdjustmentReason reason, String notes, String reference) {
+        addPending(Writes.of(batch), productId, productCode, productName, signedQuantity, reason, notes, reference);
+    }
+
+    public void addPending(Writes w, String productId, String productCode, String productName,
+                           int signedQuantity, AdjustmentReason reason, String notes, String reference) {
         Map<String, Object> data = new HashMap<>();
         data.put("companyId", context.companyId());
         data.put("warehouseId", context.warehouseId());
@@ -46,6 +52,6 @@ public class AdjustmentWriter {
         data.put("createdById", context.userId());
         data.put("createdByName", context.userName());
         data.put("createdAt", FieldValue.serverTimestamp());
-        batch.set(firestore.collection(FirestoreCollections.ADJUSTMENTS).document(), data);
+        w.set(firestore.collection(FirestoreCollections.ADJUSTMENTS).document(), data);
     }
 }

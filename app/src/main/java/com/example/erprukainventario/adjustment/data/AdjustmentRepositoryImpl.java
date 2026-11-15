@@ -9,6 +9,7 @@ import com.example.erprukainventario.auth.data.RepositoryCallback;
 import com.example.erprukainventario.core.data.DemoCatalog;
 import com.example.erprukainventario.core.data.Docs;
 import com.example.erprukainventario.core.data.FirestoreCollections;
+import com.example.erprukainventario.core.data.GuardedCommit;
 import com.example.erprukainventario.core.data.InventoryWriter;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.core.domain.MovementType;
@@ -48,15 +49,17 @@ public class AdjustmentRepositoryImpl implements AdjustmentRepository {
     private final InventoryWriter inventory;
     private final AdjustmentWriter writer;
     private final DemoCatalog catalog;
+    private final GuardedCommit guarded;
 
     @Inject
     public AdjustmentRepositoryImpl(FirebaseFirestore firestore, WorkContext context, InventoryWriter inventory,
-                                    AdjustmentWriter writer, DemoCatalog catalog) {
+                                    AdjustmentWriter writer, DemoCatalog catalog, GuardedCommit guarded) {
         this.firestore = firestore;
         this.context = context;
         this.inventory = inventory;
         this.writer = writer;
         this.catalog = catalog;
+        this.guarded = guarded;
     }
 
     @Override
@@ -98,9 +101,8 @@ public class AdjustmentRepositoryImpl implements AdjustmentRepository {
         WriteBatch batch = firestore.batch();
         writer.addPending(batch, product.getId(), product.getCode(), product.getName(),
                 signedQuantity, reason, notes, "Manual");
-        batch.commit()
-                .addOnSuccessListener(v -> callback.onResult(true))
-                .addOnFailureListener(e -> callback.onResult(false));
+        // Sin red responde al tiro: el reporte queda en la cola offline.
+        guarded.commitLocally(batch, "", "", r -> callback.onResult(r.isSuccess()));
     }
 
     @Override
@@ -110,26 +112,20 @@ public class AdjustmentRepositoryImpl implements AdjustmentRepository {
             return;
         }
         DocumentReference ref = firestore.collection(FirestoreCollections.ADJUSTMENTS).document(adjustmentId);
-        ref.get().addOnSuccessListener(doc -> {
-            if (!doc.exists()) {
-                callback.onResult(OperationResult.error("El ajuste ya no existe."));
-                return;
-            }
+        // Transacción: si dos supervisores aprueban a la vez, solo uno mueve el stock.
+        guarded.run(ref, AdjustmentRepositoryImpl::pendingOrError, (doc, w) -> {
             Adjustment adj = toAdjustment(doc);
-            // Evita aplicar dos veces el mismo ajuste si dos supervisores aprueban a la vez.
-            if (adj.getStatus() != AdjustmentStatus.PENDIENTE) {
-                callback.onResult(OperationResult.error("Este ajuste ya fue revisado."));
-                return;
-            }
-            WriteBatch batch = firestore.batch();
-            batch.update(ref, review(AdjustmentStatus.APROBADO, ""));
-            inventory.apply(batch, MovementType.AJUSTE, adj.getProductId(), adj.getProductCode(),
+            w.update(ref, review(AdjustmentStatus.APROBADO, ""));
+            inventory.apply(w, MovementType.AJUSTE, adj.getProductId(), adj.getProductCode(),
                     adj.getProductName(), adj.getQuantity(), adj.getReason().getLabel() + " · aprobado por " + context.userName());
-            batch.commit()
-                    .addOnSuccessListener(v -> callback.onResult(OperationResult.ok(
-                            "Ajuste aprobado: " + adj.signedQuantity() + " un. de " + adj.getProductName())))
-                    .addOnFailureListener(e -> callback.onResult(OperationResult.error("No se pudo aprobar.")));
-        }).addOnFailureListener(e -> callback.onResult(OperationResult.error("Sin conexión con el servidor.")));
+            return "Ajuste aprobado: " + adj.signedQuantity() + " un. de " + adj.getProductName();
+        }, "No se pudo aprobar.", callback);
+    }
+
+    private static String pendingOrError(DocumentSnapshot doc) {
+        if (!doc.exists()) return "El ajuste ya no existe.";
+        return toAdjustment(doc).getStatus() == AdjustmentStatus.PENDIENTE
+                ? null : "Este ajuste ya fue revisado por otro usuario.";
     }
 
     @Override
@@ -138,10 +134,12 @@ public class AdjustmentRepositoryImpl implements AdjustmentRepository {
             callback.onResult(OperationResult.error("Tu rol no permite rechazar ajustes."));
             return;
         }
-        firestore.collection(FirestoreCollections.ADJUSTMENTS).document(adjustmentId)
-                .update(review(AdjustmentStatus.RECHAZADO, note))
-                .addOnSuccessListener(v -> callback.onResult(OperationResult.ok("Ajuste rechazado.")))
-                .addOnFailureListener(e -> callback.onResult(OperationResult.error("No se pudo rechazar.")));
+        // También con guardia: rechazar un ajuste ya aprobado dejaría el stock movido sin respaldo.
+        DocumentReference ref = firestore.collection(FirestoreCollections.ADJUSTMENTS).document(adjustmentId);
+        guarded.run(ref, AdjustmentRepositoryImpl::pendingOrError, (doc, w) -> {
+            w.update(ref, review(AdjustmentStatus.RECHAZADO, note));
+            return "Ajuste rechazado.";
+        }, "No se pudo rechazar.", callback);
     }
 
     private Map<String, Object> review(AdjustmentStatus status, String note) {

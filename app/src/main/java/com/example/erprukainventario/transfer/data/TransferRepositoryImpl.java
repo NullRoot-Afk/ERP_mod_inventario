@@ -7,7 +7,9 @@ import com.example.erprukainventario.auth.domain.Warehouse;
 import com.example.erprukainventario.core.data.DemoCatalog;
 import com.example.erprukainventario.core.data.Docs;
 import com.example.erprukainventario.core.data.FirestoreCollections;
+import com.example.erprukainventario.core.data.GuardedCommit;
 import com.example.erprukainventario.core.data.InventoryWriter;
+import com.example.erprukainventario.core.data.LotRepository;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.core.domain.MovementType;
 import com.example.erprukainventario.core.domain.OperationResult;
@@ -59,14 +61,18 @@ public class TransferRepositoryImpl implements TransferRepository {
     private final WorkContext context;
     private final InventoryWriter inventory;
     private final DemoCatalog catalog;
+    private final LotRepository lots;
+    private final GuardedCommit guarded;
 
     @Inject
     public TransferRepositoryImpl(FirebaseFirestore firestore, WorkContext context, InventoryWriter inventory,
-                                  DemoCatalog catalog) {
+                                  DemoCatalog catalog, LotRepository lots, GuardedCommit guarded) {
         this.firestore = firestore;
         this.context = context;
         this.inventory = inventory;
         this.catalog = catalog;
+        this.lots = lots;
+        this.guarded = guarded;
     }
 
     @Override
@@ -123,10 +129,8 @@ public class TransferRepositoryImpl implements TransferRepository {
             item.put("receivedQuantity", 0);
             batch.set(ref.collection(FirestoreCollections.ITEMS).document(), item);
         }
-        batch.commit()
-                .addOnSuccessListener(v -> callback.onResult(OperationResult.ok(
-                        "Transferencia " + code + " creada. Queda en \"Por enviar\".")))
-                .addOnFailureListener(e -> callback.onResult(OperationResult.error("No se pudo crear la transferencia.")));
+        guarded.commitLocally(batch, "Transferencia " + code + " creada. Queda en \"Por enviar\".",
+                "No se pudo crear la transferencia.", callback);
     }
 
     private Map<String, Object> header(String code, String originId, String originName, String destId,
@@ -235,78 +239,79 @@ public class TransferRepositoryImpl implements TransferRepository {
             return;
         }
         DocumentReference ref = firestore.collection(FirestoreCollections.TRANSFERS).document(taskId);
-        ref.get().addOnSuccessListener(doc -> {
-            Transfer t = doc.exists() ? toTransfer(doc) : null;
-            if (t == null || t.getStatus() != TransferStatus.POR_ENVIAR) {
-                callback.onResult(OperationResult.error("La transferencia ya fue enviada."));
-                return;
-            }
-            String carrier = extras != null && extras.get(PROMPT_CARRIER) != null ? extras.get(PROMPT_CARRIER) : "";
-            WriteBatch batch = firestore.batch();
-            int units = 0;
-            for (ScanLine line : lines) {
-                units += line.getScannedQuantity();
-                batch.update(ref.collection(FirestoreCollections.ITEMS).document(line.getId()),
-                        "sentQuantity", line.getScannedQuantity());
-                inventory.apply(batch, MovementType.TRANSFERENCIA_SALIDA, line.getProductId(), line.getProductCode(),
-                        line.getProductName(), -line.getScannedQuantity(),
-                        t.getCode() + " → " + t.getDestinationName(), t.getOriginId());
-            }
-            Map<String, Object> data = new HashMap<>();
-            data.put("status", TransferStatus.EN_TRANSITO.name());
-            data.put("carrier", carrier);
-            data.put("sentAt", FieldValue.serverTimestamp());
-            data.put("sentByName", context.userName());
-            batch.update(ref, data);
+        String carrier = extras != null && extras.get(PROMPT_CARRIER) != null ? extras.get(PROMPT_CARRIER) : "";
 
-            final int totalUnits = units;
-            batch.commit()
-                    .addOnSuccessListener(v -> callback.onResult(OperationResult.ok(
-                            t.getCode() + " en tránsito hacia " + t.getDestinationName() + ".\n"
-                                    + totalUnits + " un. descontadas de tu bodega.")))
-                    .addOnFailureListener(e -> callback.onResult(OperationResult.error("No se pudo enviar.")));
-        }).addOnFailureListener(e -> callback.onResult(OperationResult.error("Sin conexión con el servidor.")));
+        Map<String, Integer> quantities = new HashMap<>();
+        for (ScanLine line : lines) {
+            if (line.getScannedQuantity() <= 0 || line.getProductId().isEmpty()) continue;
+            Integer prev = quantities.get(line.getProductId());
+            quantities.put(line.getProductId(), (prev != null ? prev : 0) + line.getScannedQuantity());
+        }
+
+        // FEFO: lo que sale hacia la otra bodega es lo que vence antes (guía §10).
+        lots.planFefo(quantities, plan -> guarded.run(ref,
+                doc -> doc.exists() && toTransfer(doc).getStatus() == TransferStatus.POR_ENVIAR
+                        ? null : "La transferencia ya fue enviada por otro usuario.",
+                (doc, w) -> {
+                    Transfer t = toTransfer(doc);
+                    int units = 0;
+                    java.util.Set<String> consumed = new java.util.HashSet<>();
+                    for (ScanLine line : lines) {
+                        units += line.getScannedQuantity();
+                        String lotLabel = consumed.add(line.getProductId())
+                                ? lots.applyTakes(w, plan.get(line.getProductId())) : null;
+                        Map<String, Object> item = new HashMap<>();
+                        item.put("sentQuantity", line.getScannedQuantity());
+                        if (lotLabel != null) item.put("lots", lotLabel);
+                        w.update(ref.collection(FirestoreCollections.ITEMS).document(line.getId()), item);
+                        inventory.apply(w, MovementType.TRANSFERENCIA_SALIDA, line.getProductId(), line.getProductCode(),
+                                line.getProductName(), -line.getScannedQuantity(),
+                                t.getCode() + " → " + t.getDestinationName(), t.getOriginId(), lotLabel);
+                    }
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("status", TransferStatus.EN_TRANSITO.name());
+                    data.put("carrier", carrier);
+                    data.put("sentAt", FieldValue.serverTimestamp());
+                    data.put("sentByName", context.userName());
+                    w.update(ref, data);
+                    return t.getCode() + " en tránsito hacia " + t.getDestinationName() + ".\n"
+                            + units + " un. descontadas de tu bodega.";
+                },
+                "No se pudo enviar.", callback));
     }
 
     private void saveReceive(String taskId, List<ScanLine> lines, RepositoryCallback<OperationResult> callback) {
         DocumentReference ref = firestore.collection(FirestoreCollections.TRANSFERS).document(taskId);
-        ref.get().addOnSuccessListener(doc -> {
-            Transfer t = doc.exists() ? toTransfer(doc) : null;
-            if (t == null || t.getStatus() != TransferStatus.EN_TRANSITO) {
-                callback.onResult(OperationResult.error("La transferencia ya fue recibida."));
-                return;
-            }
-            WriteBatch batch = firestore.batch();
-            StringBuilder discrepancies = new StringBuilder();
-            int units = 0;
-            for (ScanLine line : lines) {
-                units += line.getScannedQuantity();
-                batch.update(ref.collection(FirestoreCollections.ITEMS).document(line.getId()),
-                        "receivedQuantity", line.getScannedQuantity());
-                inventory.apply(batch, MovementType.TRANSFERENCIA_ENTRADA, line.getProductId(), line.getProductCode(),
-                        line.getProductName(), line.getScannedQuantity(),
-                        t.getCode() + " ← " + t.getOriginName(), t.getDestinationId());
-                if (line.difference() != 0) {
-                    discrepancies.append("\n• ").append(line.getProductName()).append(": enviado ")
-                            .append(line.getExpectedQuantity()).append(", recibido ").append(line.getScannedQuantity());
-                }
-            }
-            Map<String, Object> data = new HashMap<>();
-            data.put("status", TransferStatus.RECIBIDA.name());
-            data.put("receivedAt", FieldValue.serverTimestamp());
-            data.put("receivedByName", context.userName());
-            data.put("hasDiscrepancy", discrepancies.length() > 0);
-            data.put("discrepancies", discrepancies.toString().trim());
-            batch.update(ref, data);
-
-            final int totalUnits = units;
-            batch.commit()
-                    .addOnSuccessListener(v -> callback.onResult(OperationResult.ok(
-                            t.getCode() + " recibida: " + totalUnits + " un. ingresadas a tu bodega."
-                                    + (discrepancies.length() > 0
-                                    ? "\n\nDiscrepancias registradas:" + discrepancies : ""))))
-                    .addOnFailureListener(e -> callback.onResult(OperationResult.error("No se pudo registrar la recepción.")));
-        }).addOnFailureListener(e -> callback.onResult(OperationResult.error("Sin conexión con el servidor.")));
+        guarded.run(ref,
+                doc -> doc.exists() && toTransfer(doc).getStatus() == TransferStatus.EN_TRANSITO
+                        ? null : "La transferencia ya fue recibida por otro usuario.",
+                (doc, w) -> {
+                    Transfer t = toTransfer(doc);
+                    StringBuilder discrepancies = new StringBuilder();
+                    int units = 0;
+                    for (ScanLine line : lines) {
+                        units += line.getScannedQuantity();
+                        w.update(ref.collection(FirestoreCollections.ITEMS).document(line.getId()),
+                                "receivedQuantity", line.getScannedQuantity());
+                        inventory.apply(w, MovementType.TRANSFERENCIA_ENTRADA, line.getProductId(), line.getProductCode(),
+                                line.getProductName(), line.getScannedQuantity(),
+                                t.getCode() + " ← " + t.getOriginName(), t.getDestinationId(), null);
+                        if (line.difference() != 0) {
+                            discrepancies.append("\n• ").append(line.getProductName()).append(": enviado ")
+                                    .append(line.getExpectedQuantity()).append(", recibido ").append(line.getScannedQuantity());
+                        }
+                    }
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("status", TransferStatus.RECIBIDA.name());
+                    data.put("receivedAt", FieldValue.serverTimestamp());
+                    data.put("receivedByName", context.userName());
+                    data.put("hasDiscrepancy", discrepancies.length() > 0);
+                    data.put("discrepancies", discrepancies.toString().trim());
+                    w.update(ref, data);
+                    return t.getCode() + " recibida: " + units + " un. ingresadas a tu bodega."
+                            + (discrepancies.length() > 0 ? "\n\nDiscrepancias registradas:" + discrepancies : "");
+                },
+                "No se pudo registrar la recepción.", callback);
     }
 
     // ------------------------------------------------------------------

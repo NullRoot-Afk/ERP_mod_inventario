@@ -3,8 +3,6 @@ package com.example.erprukainventario.core.data;
 import com.example.erprukainventario.core.domain.MovementType;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.SetOptions;
-import com.google.firebase.firestore.WriteBatch;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,10 +11,10 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
- * Agrega a un WriteBatch los dos efectos de cualquier operación de bodega:
- * el cambio de stock del producto y el registro en la bitácora MOVEMENTS.
- * Al ir en el mismo batch que el cambio de estado del documento, o se aplica
- * todo o nada (no queda stock movido sin su movimiento, ni al revés).
+ * Agrega a un batch o transacción ({@link Writes}) los dos efectos de cualquier
+ * operación de bodega: el cambio de stock del producto y el registro en la
+ * bitácora MOVEMENTS. Al ir junto con el cambio de estado del documento, o se
+ * aplica todo o nada (no queda stock movido sin su movimiento, ni al revés).
  */
 @Singleton
 public class InventoryWriter {
@@ -32,10 +30,10 @@ public class InventoryWriter {
 
     /**
      * Suma (o resta, si delta < 0) stock en una bodega. Se usa set+merge con
-     * FieldValue.increment: es atómico en el servidor y no falla si el producto
-     * aún no tiene ese campo de bodega.
+     * FieldValue.increment: es atómico en el servidor, no se pisa con cambios de
+     * otros dispositivos (se suman) y no falla si el producto aún no tiene ese campo.
      */
-    public void addStockChange(WriteBatch batch, String productId, String warehouseId, int delta) {
+    public void addStockChange(Writes w, String productId, String warehouseId, int delta) {
         if (productId == null || productId.isEmpty() || delta == 0) return;
 
         Map<String, Object> stock = new HashMap<>();
@@ -45,45 +43,33 @@ public class InventoryWriter {
         data.put("companyId", context.companyId());
         data.put("stock", stock);
 
-        batch.set(firestore.collection(FirestoreCollections.PRODUCTS).document(productId), data, SetOptions.merge());
+        w.merge(firestore.collection(FirestoreCollections.PRODUCTS).document(productId), data);
     }
 
-    public void addMovement(WriteBatch batch, MovementType type, String productId, String productCode,
-                            String productName, int quantity, String reference, String warehouseId) {
-        addMovement(batch, type, productId, productCode, productName, quantity, reference, warehouseId, null);
-    }
-
-    public void addMovement(WriteBatch batch, MovementType type, String productId, String productCode,
+    public void addMovement(Writes w, MovementType type, String productId, String productCode,
                             String productName, int quantity, String reference, String warehouseId, String lot) {
         if (quantity == 0) return;
-        batch.set(firestore.collection(FirestoreCollections.MOVEMENTS).document(),
+        w.set(firestore.collection(FirestoreCollections.MOVEMENTS).document(),
                 movementData(type, productId, productCode, productName, quantity, reference, warehouseId, lot));
     }
 
     /** Atajo: mueve stock y deja el movimiento firmado, en la bodega del usuario. */
-    public void apply(WriteBatch batch, MovementType type, String productId, String productCode,
+    public void apply(Writes w, MovementType type, String productId, String productCode,
                       String productName, int delta, String reference) {
-        apply(batch, type, productId, productCode, productName, delta, reference, context.warehouseId());
+        apply(w, type, productId, productCode, productName, delta, reference, context.warehouseId(), null);
     }
 
-    public void apply(WriteBatch batch, MovementType type, String productId, String productCode,
-                      String productName, int delta, String reference, String warehouseId) {
-        addStockChange(batch, productId, warehouseId, delta);
-        addMovement(batch, type, productId, productCode, productName, delta, reference, warehouseId);
-    }
-
-    /** Igual que {@link #apply} pero registrando el lote del movimiento (recepción con lote). */
-    public void applyWithLot(WriteBatch batch, MovementType type, String productId, String productCode,
-                             String productName, int delta, String reference, String lot) {
-        addStockChange(batch, productId, context.warehouseId(), delta);
-        addMovement(batch, type, productId, productCode, productName, delta, reference, context.warehouseId(), lot);
+    public void apply(Writes w, MovementType type, String productId, String productCode,
+                      String productName, int delta, String reference, String warehouseId, String lot) {
+        addStockChange(w, productId, warehouseId, delta);
+        addMovement(w, type, productId, productCode, productName, delta, reference, warehouseId, lot);
     }
 
     /**
      * Fija la ubicación del producto en la bodega del usuario (campo locations.{bodega}).
      * No toca el stock.
      */
-    public void setLocation(WriteBatch batch, String productId, String location) {
+    public void setLocation(Writes w, String productId, String location) {
         if (productId == null || productId.isEmpty() || location == null || location.isEmpty()) return;
 
         Map<String, Object> locations = new HashMap<>();
@@ -93,17 +79,17 @@ public class InventoryWriter {
         data.put("companyId", context.companyId());
         data.put("locations", locations);
 
-        batch.set(firestore.collection(FirestoreCollections.PRODUCTS).document(productId), data, SetOptions.merge());
+        w.merge(firestore.collection(FirestoreCollections.PRODUCTS).document(productId), data);
     }
 
     /**
      * Reubicación (guía §4): cambia la ubicación y deja la traza en MOVEMENTS.
      * La cantidad registrada es el stock trasladado; el stock total no cambia.
      */
-    public void relocate(WriteBatch batch, String productId, String productCode, String productName,
+    public void relocate(Writes w, String productId, String productCode, String productName,
                          int unitsMoved, String fromLocation, String toLocation) {
-        setLocation(batch, productId, toLocation);
-        batch.set(firestore.collection(FirestoreCollections.MOVEMENTS).document(),
+        setLocation(w, productId, toLocation);
+        w.set(firestore.collection(FirestoreCollections.MOVEMENTS).document(),
                 movementData(MovementType.REUBICACION, productId, productCode, productName, unitsMoved,
                         fromLocation + " → " + toLocation, context.warehouseId(), null));
     }
