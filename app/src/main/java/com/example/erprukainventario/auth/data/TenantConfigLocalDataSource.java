@@ -31,7 +31,7 @@ public class TenantConfigLocalDataSource {
     private final SharedPreferences prefs;
 
     @Inject
-    public TenantConfigLocalDataSource(@ApplicationContext Context context) {
+    public TenantConfigLocalDataSource(@ApplicationContext Context context) {//acceso a recursos u contexto de android correspondientes a la aplicacion
         this.prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 

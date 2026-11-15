@@ -9,12 +9,12 @@ import java.security.NoSuchAlgorithmException;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-@Singleton
+@Singleton //Indicacion de un contenedor de inyeccion de dependencias
 public class AuthLocalDataSource {
 
-    private final AuthDao authDao;
+    private final AuthDao authDao; //Referencia al objeto que permite acceder y modificar la informacion de una tabla
 
-    @Inject//Constructor
+    @Inject//Permite la inyeccion de authDao automaticamente
     public AuthLocalDataSource(AuthDao authDao) {
         this.authDao = authDao;
     }
@@ -23,19 +23,23 @@ public class AuthLocalDataSource {
         CachedCredentialEntity entity = new CachedCredentialEntity();
         entity.userId = user.getId();          // clave primaria: ver nota en CachedCredentialEntity
         entity.username = username;
-        entity.passwordHash = hash(password);  // TODO: reemplazar por BCrypt/Argon2 real
+        entity.passwordHash = hash(password);
         entity.fullName = user.getFullName();
         entity.role = user.getRole().name();
         entity.warehouseId = user.getWarehouseId();
         entity.warehouseName = user.getWarehouseName();
-        authDao.upsertCredential(entity);
+        //Actualizacion o insercion de un nuevo registro(Upsert)
+        authDao.upsertCredential(entity); //Se le delega la responsabilidad de guardar la entidad a authDao
     }
 
     public AuthUser validateOffline(String username, String password) {
-        CachedCredentialEntity cached = authDao.findCredential(username);
-        if (cached == null) return null;
-        if (!cached.passwordHash.equals(hash(password))) return null;
+        CachedCredentialEntity cached = authDao.findCredential(username);//Se busca al usuario en cache
+        if (cached == null) return null;//Si no se encuentra retorna nulo
+        if (!cached.passwordHash.equals(hash(password))) return null;//Si se encuentra pero los hashes son diferentes retorna nulo
+        //Si pasa los filtros se le crea y retorna una instancia del tipo AuthUser
 
+        /* Se retorna un AuthUser en vez de un CachedCredentialEntity para separar los datos persistentes
+         * En la base de datos local, del usuario dentro de la logica de la aplicacion */
         return new AuthUser(
                 cached.userId,
                 cached.fullName,
@@ -44,8 +48,7 @@ public class AuthLocalDataSource {
                 cached.warehouseName
         );
     }
-
-    // Placeholder de hashing. NO usar tal cual en producción (usar BCrypt/Argon2).
+    //Metodo de hash de contraseñas
     private String hash(String raw) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

@@ -89,4 +89,74 @@
     <string name="reception_tab_scanned">Escaneados</string>
     <string name="reception_input_quantity_label">Cantidad recibida</string>
     <string name="reception_add_button">Agregar</string>
+
+    <!-- ===== Sesión de escaneo genérica ===== -->
+    <string name="scan_instruction">Apunta la cámara al código de barras o QR</string>
+    <string name="scan_manual_entry">Ingresar código</string>
+    <string name="scan_tab_done">Listos</string>
+    <string name="scan_empty_tab">No hay líneas en esta pestaña</string>
+    <string name="scan_progress_format">%1$d / %2$d líneas completas</string>
+    <string name="scan_progress_blind_format">%1$d / %2$d productos contados</string>
+    <string name="scan_not_in_task_format">El código %1$s no pertenece a esta tarea</string>
+    <string name="scan_meta_format">Llevas %1$d / %2$d un. · Ubicación %3$s</string>
+    <string name="scan_meta_blind_format">Contado: %1$d un. · Ubicación %2$s</string>
+    <string name="scan_edit_title">Corregir cantidad</string>
+    <string name="scan_edit_confirm">Guardar cantidad</string>
+    <string name="scan_confirm">Confirmar</string>
+
+    <!-- ===== Picking / Despacho ===== -->
+    <string name="picking_search_hint">Buscar pedido o cliente</string>
+    <string name="picking_empty">No hay pedidos para preparar.\nMantén presionado el título para cargar datos de prueba.</string>
+    <string name="dispatch_search_hint">Buscar pedido, cliente o guía</string>
+    <string name="dispatch_empty">No hay pedidos en esta pestaña.\nLos pedidos aparecen aquí al terminar su picking.</string>
+
+    <!-- ===== Conteo ===== -->
+    <string name="count_search_hint">Buscar conteo</string>
+    <string name="count_empty">No hay conteos.\nMantén presionado el título para cargar datos de prueba.</string>
+    <string name="count_tab_closed">Cerrados</string>
+    <string name="count_new">Programar conteo</string>
+
+    <!-- ===== Transferencias ===== -->
+    <string name="transfer_search_hint">Buscar transferencia o bodega</string>
+    <string name="transfer_empty">No hay transferencias en esta pestaña.\nMantén presionado el título para cargar datos de prueba.</string>
+    <string name="transfer_destination">Bodega de destino</string>
+    <string name="transfer_products">Productos</string>
+    <string name="transfer_add_code">+ Código</string>
+    <string name="transfer_add_scan">+ Escanear</string>
+    <string name="transfer_no_lines">Agrega los productos a trasladar</string>
+    <string name="transfer_create">Crear transferencia</string>
+    <string name="transfer_origin_format">Origen: %1$s</string>
+    <string name="transfer_add_title">Agregar a la transferencia</string>
+    <string name="transfer_stock_format">Disponible: %1$d un. · Ubicación %2$s</string>
+    <string name="transfer_quantity_label">Cantidad a trasladar</string>
+    <string name="transfer_edit_hint">Deja 0 para quitar el producto</string>
+
+    <!-- ===== Ajustes ===== -->
+    <string name="adjustment_search_hint">Buscar producto o motivo</string>
+    <string name="adjustment_empty">No hay ajustes en esta pestaña</string>
+    <string name="adjustment_tab_to_approve">Por aprobar</string>
+    <string name="adjustment_no_product">Busca o escanea el producto a ajustar</string>
+    <string name="adjustment_reason">Motivo</string>
+    <string name="adjustment_direction_out">Salida (−)</string>
+    <string name="adjustment_direction_in">Entrada (+)</string>
+    <string name="adjustment_quantity">Cantidad</string>
+    <string name="adjustment_notes">Notas (opcional)</string>
+    <string name="adjustment_approval_note">El ajuste quedará pendiente hasta que un supervisor o jefe de bodega lo apruebe. Recién entonces se modifica el stock.</string>
+    <string name="adjustment_submit">Enviar a aprobación</string>
+    <string name="adjustment_product_format">%1$s\nSKU %2$s · Ubicación %3$s\nStock en tu bodega: %4$d un.</string>
+
+    <!-- ===== Escanear ahora (consulta de producto) ===== -->
+    <string name="lookup_title">Consulta de producto</string>
+    <string name="lookup_pick_title">Escanear producto</string>
+    <string name="lookup_manual">Código</string>
+    <string name="lookup_hint">Escanea un producto para ver su ubicación, stock por bodega y últimos movimientos</string>
+    <string name="lookup_low_stock">Stock crítico</string>
+    <string name="lookup_report_adjustment">Reportar ajuste (merma, daño…)</string>
+    <string name="lookup_movements">Últimos movimientos</string>
+    <string name="lookup_no_movements">Sin movimientos registrados</string>
+    <string name="lookup_not_found_format">No hay un producto con el código %1$s</string>
+    <string name="lookup_units_format">%1$d un.</string>
+    <string name="lookup_stock_label_format">Stock en %1$s · mínimo %2$d</string>
+    <string name="lookup_no_other_stock">Sin stock en otras bodegas</string>
+    <string name="home_sync_status_loading">Sincronizando tareas…</string>
 </resources>

@@ -36,6 +36,7 @@
         tools:text="Actual: 0 / 20 un. · SKU: PROD-101" />
 
     <TextView
+        android:id="@+id/tvQuantityLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="20dp"

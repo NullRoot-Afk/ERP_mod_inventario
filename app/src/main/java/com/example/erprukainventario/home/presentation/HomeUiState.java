@@ -6,6 +6,7 @@ public class HomeUiState {
     public final String roleLabel;
     public final String warehouseName;
     public final String initials;
+    /** -1 mientras se calcula. */
     public final int pendingTasksCount;
 
     public HomeUiState(String greetingName, String roleLabel, String warehouseName,
@@ -15,5 +16,9 @@ public class HomeUiState {
         this.warehouseName = warehouseName;
         this.initials = initials;
         this.pendingTasksCount = pendingTasksCount;
+    }
+
+    public HomeUiState withPendingTasks(int count) {
+        return new HomeUiState(greetingName, roleLabel, warehouseName, initials, count);
     }
 }

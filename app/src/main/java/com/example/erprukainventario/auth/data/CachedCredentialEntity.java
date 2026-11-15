@@ -10,6 +10,7 @@ import androidx.room.PrimaryKey;
  * misma fila (REPLACE por userId) en vez de crear una fila nueva y dejar
  * la vieja como una credencial offline huérfana todavía válida.
  */
+//Entidad a la que se hace referencia en AppDatabase
 @Entity(tableName = "cached_credentials")
 public class CachedCredentialEntity {
 

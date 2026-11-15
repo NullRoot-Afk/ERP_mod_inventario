@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Feedback vibratorio al escanear (permiso normal, no se pide en tiempo de ejecución) -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
@@ -51,6 +53,36 @@
             android:exported="false" />
         <activity
             android:name=".reception.presentation.ReceptionProcessActivity"
+            android:exported="false" />
+
+        <!-- Escaneo genérico (picking, despacho, conteo, transferencias) y consulta rápida -->
+        <activity
+            android:name=".core.scan.ScanSessionActivity"
+            android:exported="false" />
+        <activity
+            android:name=".lookup.presentation.ProductLookupActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".picking.presentation.PickingListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".dispatch.presentation.DispatchListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".count.presentation.CountListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".transfer.presentation.TransferListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".transfer.presentation.TransferFormActivity"
+            android:exported="false" />
+        <activity
+            android:name=".adjustment.presentation.AdjustmentListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".adjustment.presentation.AdjustmentFormActivity"
             android:exported="false" />
     </application>
 

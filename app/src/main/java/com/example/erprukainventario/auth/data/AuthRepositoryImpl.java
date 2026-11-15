@@ -217,12 +217,12 @@ public class AuthRepositoryImpl implements AuthRepository {
             return UserRole.OPERARIO;
         }
     }
-
+    //se gatilla el siguientodo cuando la conexion no esa disponible
     private void attemptOfflineLogin(String email, String password, RepositoryCallback<LoginResult> callback) {
         dbExecutor.execute(() -> {
-            AuthUser cachedUser = localDataSource.validateOffline(email, password);
+            AuthUser cachedUser = localDataSource.validateOffline(email, password);//Se valida que las credenciales sean las mismas que en cache
             mainHandler.post(() -> {
-                if (cachedUser != null) {
+                if (cachedUser != null) {//Si la validacion retorno null, el usuario no podra acceder a su cuenta de forma offline
                     sessionManager.setCurrentUser(cachedUser);
                     callback.onResult(LoginResult.success(cachedUser, true));
                 } else {
