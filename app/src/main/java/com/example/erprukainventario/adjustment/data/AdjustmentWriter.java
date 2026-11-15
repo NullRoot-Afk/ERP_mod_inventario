@@ -38,16 +38,17 @@ public class AdjustmentWriter {
 
     public void addPending(Writes w, String productId, String productCode, String productName,
                            int signedQuantity, AdjustmentReason reason, String notes, String reference) {
-        addPending(w, productId, productCode, productName, signedQuantity, reason, notes, reference, null, null);
+        addPending(w, productId, productCode, productName, signedQuantity, reason, notes, reference, null, null, null);
     }
 
     /**
-     * @param lotId lote afectado (la caja dañada, el lote retirado), o null. Al aprobar,
-     *              la rebaja sale de ese lote; sin lote indicado, por FEFO.
+     * @param lotId   lote afectado (la caja dañada, el lote retirado), o null. Al aprobar,
+     *                la rebaja sale de ese lote; sin lote indicado, por FEFO.
+     * @param serials series de las unidades (producto con número de serie), o null.
      */
     public void addPending(Writes w, String productId, String productCode, String productName,
                            int signedQuantity, AdjustmentReason reason, String notes, String reference,
-                           String lotId, String lotNumber) {
+                           String lotId, String lotNumber, java.util.List<String> serials) {
         Map<String, Object> data = new HashMap<>();
         data.put("companyId", context.companyId());
         data.put("warehouseId", context.warehouseId());
@@ -60,6 +61,7 @@ public class AdjustmentWriter {
         data.put("reference", reference != null ? reference : "");
         data.put("lotId", lotId != null ? lotId : "");
         data.put("lotNumber", lotNumber != null ? lotNumber : "");
+        if (serials != null && !serials.isEmpty()) data.put("serials", serials);
         data.put("status", AdjustmentStatus.PENDIENTE.name());
         data.put("createdById", context.userId());
         data.put("createdByName", context.userName());

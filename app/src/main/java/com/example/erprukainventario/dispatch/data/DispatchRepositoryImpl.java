@@ -6,9 +6,13 @@ import com.example.erprukainventario.core.data.FirestoreCollections;
 import com.example.erprukainventario.core.data.GuardedCommit;
 import com.example.erprukainventario.core.data.InventoryWriter;
 import com.example.erprukainventario.core.data.LotRepository;
+import com.example.erprukainventario.core.data.ProductRepository;
+import com.example.erprukainventario.core.data.SerialRepository;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.core.domain.MovementType;
 import com.example.erprukainventario.core.domain.OperationResult;
+import com.example.erprukainventario.core.domain.SerialStatus;
+import com.example.erprukainventario.core.domain.Serials;
 import com.example.erprukainventario.core.scan.ScanConfig;
 import com.example.erprukainventario.core.scan.ScanLine;
 import com.example.erprukainventario.core.scan.ScanLines;
@@ -56,15 +60,20 @@ public class DispatchRepositoryImpl implements DispatchRepository, ScanTaskSourc
     private final InventoryWriter inventory;
     private final LotRepository lots;
     private final GuardedCommit guarded;
+    private final ProductRepository products;
+    private final SerialRepository serials;
 
     @Inject
     public DispatchRepositoryImpl(FirebaseFirestore firestore, WorkContext context, InventoryWriter inventory,
-                                  LotRepository lots, GuardedCommit guarded) {
+                                  LotRepository lots, GuardedCommit guarded, ProductRepository products,
+                                  SerialRepository serials) {
         this.firestore = firestore;
         this.context = context;
         this.inventory = inventory;
         this.lots = lots;
         this.guarded = guarded;
+        this.products = products;
+        this.serials = serials;
     }
 
     @Override
@@ -107,8 +116,10 @@ public class DispatchRepositoryImpl implements DispatchRepository, ScanTaskSourc
                             .requireComplete()
                             .finishPrompts(PROMPT_CARRIER, PROMPT_PLATE, PROMPT_PACKAGES)
                             .build();
-                    callback.onResult(new ScanTask(order.getId(), order.getCode(),
-                            order.getCustomerName(), ScanLines.sortedByLocation(lines), config));
+                    // Productos con número de serie: se escanea la serie de cada unidad que sale.
+                    products.getSerializedProductIds(serialized -> callback.onResult(new ScanTask(
+                            order.getId(), order.getCode(), order.getCustomerName(),
+                            ScanLines.withSerialControl(ScanLines.sortedByLocation(lines), serialized), config)));
                 })
                 .addOnFailureListener(e -> callback.onResult(null));
     }
@@ -129,6 +140,25 @@ public class DispatchRepositoryImpl implements DispatchRepository, ScanTaskSourc
             quantities.put(line.getProductId(), (prev != null ? prev : 0) + line.getScannedQuantity());
         }
 
+        String missing = ScanLines.missingSerials(lines);
+        if (missing != null) {
+            callback.onResult(OperationResult.error(missing));
+            return;
+        }
+        // Las series deben estar en esta bodega (guía §10). Si otro dispositivo las despacha
+        // a la vez, las reglas rechazan el segundo cambio de estado con todo su batch.
+        serials.checkInMyWarehouse(ScanLines.serialsByProduct(lines), serialError -> {
+            if (serialError != null) {
+                callback.onResult(OperationResult.error(serialError));
+                return;
+            }
+            commitDispatch(orderRef, lines, quantities, guide, carrier, plate, packages, callback);
+        });
+    }
+
+    private void commitDispatch(DocumentReference orderRef, List<ScanLine> lines, Map<String, Integer> quantities,
+                                String guide, String carrier, String plate, int packages,
+                                RepositoryCallback<OperationResult> callback) {
         // FEFO (guía §10): sale primero lo que vence antes. El plan se calcula antes de la
         // transacción porque ésta no admite consultas; los descuentos de lote son incrementos.
         lots.planFefo(quantities, plan -> guarded.run(orderRef,
@@ -142,18 +172,27 @@ public class DispatchRepositoryImpl implements DispatchRepository, ScanTaskSourc
                     int units = 0;
                     StringBuilder lotSummary = new StringBuilder();
                     java.util.Set<String> consumed = new java.util.HashSet<>();
+                    StringBuilder serialSummary = new StringBuilder();
                     for (ScanLine line : lines) {
                         units += line.getScannedQuantity();
-                        w.update(orderRef.collection(FirestoreCollections.ITEMS).document(line.getId()),
-                                "verifiedQuantity", line.getScannedQuantity());
+                        Map<String, Object> item = new HashMap<>();
+                        item.put("verifiedQuantity", line.getScannedQuantity());
+                        if (line.isSerialized()) item.put("serials", line.getSerials());
+                        w.update(orderRef.collection(FirestoreCollections.ITEMS).document(line.getId()), item);
                         // Si un producto viene en varias líneas, sus lotes se descuentan una sola vez.
                         String lotLabel = consumed.add(line.getProductId())
                                 ? lots.applyTakes(w, plan.get(line.getProductId())) : null;
+                        String serialLabel = Serials.join(line.getSerials());
+                        serials.move(w, line.getProductId(), line.getSerials(), SerialStatus.DESPACHADO,
+                                context.warehouseId(), guide + " / " + order.getCode());
                         inventory.apply(w, MovementType.DESPACHO, line.getProductId(), line.getProductCode(),
                                 line.getProductName(), -line.getScannedQuantity(), guide + " / " + order.getCode(),
-                                context.warehouseId(), lotLabel);
+                                context.warehouseId(), lotLabel, serialLabel);
                         if (lotLabel != null) {
                             lotSummary.append("\n• ").append(line.getProductName()).append(": ").append(lotLabel);
+                        }
+                        if (!serialLabel.isEmpty()) {
+                            serialSummary.append("\n• ").append(line.getProductName()).append(": ").append(serialLabel);
                         }
                     }
 
@@ -176,6 +215,7 @@ public class DispatchRepositoryImpl implements DispatchRepository, ScanTaskSourc
                             + "Bultos/pallets: " + packages + "\n"
                             + "Total: " + units + " un. en " + lines.size() + " líneas"
                             + (lotSummary.length() > 0 ? "\n\nLotes despachados (FEFO):" + lotSummary : "")
+                            + (serialSummary.length() > 0 ? "\n\nNúmeros de serie:" + serialSummary : "")
                             + (order.getStatus() == PickingStatus.PARCIAL
                             ? "\n\nDespacho parcial: lo no recolectado queda como backorder." : "");
                 },

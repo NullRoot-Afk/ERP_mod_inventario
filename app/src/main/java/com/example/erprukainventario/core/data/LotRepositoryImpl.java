@@ -189,7 +189,7 @@ public class LotRepositoryImpl implements LotRepository {
                     adjustments.addPending(w, lot.getProductId(), lot.getProductCode(), lot.getProductName(),
                             -qty, AdjustmentReason.VENCIDO,
                             "Retiro de lote " + lot.getLotNumber() + " (vence " + expiry + ")",
-                            "Lote " + lot.getLotNumber(), lot.getId(), lot.getLotNumber());
+                            "Lote " + lot.getLotNumber(), lot.getId(), lot.getLotNumber(), null);
                     return "Lote " + lot.getLotNumber() + " retirado. Se creó un ajuste de "
                             + qty + " un. pendiente de aprobación.";
                 },

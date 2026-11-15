@@ -22,11 +22,15 @@ public class Adjustment {
     /** Lote afectado ("" = sin indicar: al aprobar una rebaja se descuenta por FEFO). */
     private final String lotId;
     private final String lotNumber;
+    /** Series de las unidades ajustadas (producto con número de serie, guía §10). */
+    private final java.util.List<String> serials;
 
     public Adjustment(String id, String productId, String productCode, String productName, int quantity,
                       AdjustmentReason reason, String notes, String reference, AdjustmentStatus status,
                       String createdById, String createdByName, Date createdAt,
-                      String reviewedByName, String reviewNote, String lotId, String lotNumber) {
+                      String reviewedByName, String reviewNote, String lotId, String lotNumber,
+                      java.util.List<String> serials) {
+        this.serials = serials != null ? serials : java.util.Collections.<String>emptyList();
         this.id = id;
         this.productId = productId;
         this.productCode = productCode;
@@ -62,6 +66,7 @@ public class Adjustment {
     public String getLotId() { return lotId; }
     public String getLotNumber() { return lotNumber; }
     public boolean hasLot() { return lotId != null && !lotId.isEmpty(); }
+    public java.util.List<String> getSerials() { return serials; }
 
     /** "+5" / "-3" para mostrar. */
     public String signedQuantity() {

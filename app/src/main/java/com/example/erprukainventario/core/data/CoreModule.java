@@ -14,4 +14,7 @@ public abstract class CoreModule {
 
     @Binds
     public abstract LotRepository bindLotRepository(LotRepositoryImpl impl);
+
+    @Binds
+    public abstract SerialRepository bindSerialRepository(SerialRepositoryImpl impl);
 }

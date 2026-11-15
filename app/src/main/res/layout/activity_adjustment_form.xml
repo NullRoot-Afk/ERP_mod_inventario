@@ -140,6 +140,27 @@
                 android:textColor="@color/text_primary" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- ===== Números de serie (solo productos que los controlan) ===== -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilSerials"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="@string/adjustment_serials"
+            android:visibility="gone"
+            app:helperText="@string/adjustment_serials_helper"
+            tools:visibility="visible">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etSerials"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="top"
+                android:inputType="textMultiLine|textCapCharacters|textNoSuggestions"
+                android:minLines="2" />
+        </com.google.android.material.textfield.TextInputLayout>
+
         <!-- ===== Dirección (solo para motivos sin signo fijo) ===== -->
         <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/toggleDirection"

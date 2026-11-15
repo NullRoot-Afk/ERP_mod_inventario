@@ -301,3 +301,73 @@ describe('Recepción', () => {
     await assertSucceeds(b.commit());
   });
 });
+
+describe('Números de serie', () => {
+  const S1 = 'SERIALS/ACME_p1_SN1';
+
+  /** Mismas escrituras que la recepción de una unidad con serie (SerialRepositoryImpl.addReceived). */
+  function receive(fs, warehouseId = 'W1') {
+    return setDoc(doc(fs, S1), {
+      companyId: 'ACME', productId: 'p1', serialNumber: 'SN1', status: 'EN_BODEGA', warehouseId,
+      reference: 'OC-1', updatedAt: serverTimestamp(),
+    });
+  }
+
+  function move(fs, status, warehouseId) {
+    return updateDoc(doc(fs, S1), { status, warehouseId, reference: 'X', updatedAt: serverTimestamp() });
+  }
+
+  test('solo el supervisor activa el control por serie de un producto', async () => {
+    await assertFails(updateDoc(doc(db('op1'), 'PRODUCTS/p1'), { serialized: true }));
+    await assertSucceeds(updateDoc(doc(db('sup1'), 'PRODUCTS/p1'), { serialized: true }));
+    // El stock lo sigue moviendo cualquiera de la empresa.
+    await assertSucceeds(setDoc(doc(db('op1'), 'PRODUCTS/p1'),
+      { companyId: 'ACME', stock: { W1: increment(1) } }, { merge: true }));
+  });
+
+  test('se puede consultar si una serie existe, pero no las de otra empresa', async () => {
+    await assertSucceeds(getDoc(doc(db('op1'), S1))); // no existe todavía
+    await receive(db('op1'));
+    await assertSucceeds(getDoc(doc(db('op2'), S1)));
+    await assertFails(getDoc(doc(db('intruso'), S1)));
+  });
+
+  test('una serie en bodega no se recibe dos veces y entra solo a la propia bodega', async () => {
+    await assertFails(receive(db('op1'), 'W2'));
+    await assertSucceeds(receive(db('op1')));
+    await assertFails(receive(db('op1')));
+  });
+
+  test('una serie despachada no se despacha otra vez y solo la saca su bodega', async () => {
+    await receive(db('op1'));
+    await assertFails(move(db('op2'), 'DESPACHADO', 'W2')); // está en W1
+    await assertSucceeds(move(db('op1'), 'DESPACHADO', 'W1'));
+    await assertFails(move(db('op1'), 'DESPACHADO', 'W1'));
+    // Devolución: vuelve a entrar.
+    await assertSucceeds(receive(db('op1')));
+  });
+
+  test('despacho con una serie ya despachada: se rechaza todo el batch y el stock no se mueve', async () => {
+    await receive(db('op1'));
+    await move(db('op1'), 'DESPACHADO', 'W1');
+    const fs = db('op1');
+    const b = writeBatch(fs);
+    b.update(doc(fs, S1), { status: 'DESPACHADO', warehouseId: 'W1' });
+    b.set(doc(fs, 'PRODUCTS/p1'), { companyId: 'ACME', stock: { W1: increment(-1) } }, { merge: true });
+    await assertFails(b.commit());
+    assert.equal(await stockOfP1(), 50);
+  });
+
+  test('transferencia: el origen la envía y solo el destino la recibe', async () => {
+    await receive(db('op1'));
+    await assertSucceeds(move(db('op1'), 'EN_TRANSITO', 'W2'));
+    await assertFails(move(db('op1'), 'EN_BODEGA', 'W1')); // ya no es de W1
+    await assertSucceeds(move(db('op2'), 'EN_BODEGA', 'W2'));
+  });
+
+  test('dar de baja (ajuste aprobado) es solo del supervisor', async () => {
+    await receive(db('op1'));
+    await assertFails(move(db('op1'), 'BAJA', 'W1'));
+    await assertSucceeds(move(db('sup1'), 'BAJA', 'W1'));
+  });
+});

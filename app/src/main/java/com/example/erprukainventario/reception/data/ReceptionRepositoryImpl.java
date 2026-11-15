@@ -10,8 +10,10 @@ import com.example.erprukainventario.core.data.GuardedCommit;
 import com.example.erprukainventario.core.data.Writes;
 import com.example.erprukainventario.core.data.InventoryWriter;
 import com.example.erprukainventario.core.data.LotRepository;
+import com.example.erprukainventario.core.data.SerialRepository;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.core.domain.MovementType;
+import com.example.erprukainventario.core.domain.Serials;
 import com.example.erprukainventario.reception.domain.Discrepancy;
 import com.example.erprukainventario.reception.domain.ReceiptEntry;
 import com.example.erprukainventario.reception.domain.PurchaseOrder;
@@ -73,12 +75,15 @@ public class ReceptionRepositoryImpl implements ReceptionRepository {
     private final EvidenceRepository evidence;
     private final WorkContext context;
     private final GuardedCommit guarded;
+    private final SerialRepository serials;
 
     @Inject
     public ReceptionRepositoryImpl(TenantConfigLocalDataSource tenantConfig, FirebaseFirestore firestore,
                                    InventoryWriter inventory, LotRepository lots,
-                                   EvidenceRepository evidence, WorkContext context, GuardedCommit guarded) {
+                                   EvidenceRepository evidence, WorkContext context, GuardedCommit guarded,
+                                   SerialRepository serials) {
         this.guarded = guarded;
+        this.serials = serials;
         this.tenantConfig = tenantConfig;
         this.firestore = firestore;
         this.inventory = inventory;
@@ -238,7 +243,11 @@ public class ReceptionRepositoryImpl implements ReceptionRepository {
                         String code = r.getProductCode() != null ? r.getProductCode() : "";
                         String productId = idByCode.get(code.toUpperCase(java.util.Locale.ROOT));
                         inventory.apply(w, MovementType.RECEPCION, productId, code, r.getProductName(),
-                                r.getQuantity(), orderCode, context.warehouseId(), r.getLot());
+                                r.getQuantity(), orderCode, context.warehouseId(), r.getLot(),
+                                Serials.join(r.getSerials()));
+                        // Alta de cada unidad con número de serie (guía §10). Si otro dispositivo ya
+                        // recibió la misma serie, las reglas rechazan el batch completo.
+                        serials.addReceived(w, productId, code, r.getProductName(), r.getSerials(), orderCode);
                         lots.addLotReceipt(w, productId, code, r.getProductName(), r.getLot(),
                                 r.getExpiryDate(), r.getQuantity(), orderCode);
                         if (r.getLocation() != null) inventory.setLocation(w, productId, r.getLocation());

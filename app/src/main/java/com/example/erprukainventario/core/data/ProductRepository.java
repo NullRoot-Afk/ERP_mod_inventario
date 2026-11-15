@@ -3,6 +3,7 @@ package com.example.erprukainventario.core.data;
 import com.example.erprukainventario.auth.data.RepositoryCallback;
 import com.example.erprukainventario.auth.domain.Warehouse;
 import com.example.erprukainventario.core.domain.Movement;
+import com.example.erprukainventario.core.domain.OperationResult;
 import com.example.erprukainventario.core.domain.Product;
 
 import java.util.List;
@@ -22,4 +23,10 @@ public interface ProductRepository {
 
     /** Bodegas de la empresa configurada. */
     void getWarehouses(RepositoryCallback<List<Warehouse>> callback);
+
+    /** Solo supervisor/jefe: activa o quita el control por número de serie (guía §10). */
+    void setSerialized(String productId, boolean serialized, RepositoryCallback<OperationResult> callback);
+
+    /** Ids de los productos que controlan número de serie (funciona offline con el caché). */
+    void getSerializedProductIds(RepositoryCallback<java.util.Set<String>> callback);
 }

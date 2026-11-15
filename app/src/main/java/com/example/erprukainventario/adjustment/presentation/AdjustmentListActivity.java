@@ -58,6 +58,8 @@ public class AdjustmentListActivity extends BaseTaskListActivity {
                 .append("Origen: ").append(a.getReference()).append("\n")
                 .append("Lote: ").append(a.hasLot() ? a.getLotNumber()
                         : a.getQuantity() < 0 ? "sin indicar (se descuenta por FEFO)" : "sin lote").append("\n")
+                .append(a.getSerials().isEmpty() ? ""
+                        : "Series: " + com.example.erprukainventario.core.domain.Serials.join(a.getSerials()) + "\n")
                 .append("Reportado por: ").append(a.getCreatedByName()).append(" · ")
                 .append(AdjustmentListViewModel.formatDate(a));
         if (!a.getNotes().isEmpty()) detail.append("\nNotas: ").append(a.getNotes());

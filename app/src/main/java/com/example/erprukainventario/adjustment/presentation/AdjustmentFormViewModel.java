@@ -11,6 +11,7 @@ import com.example.erprukainventario.core.data.ProductRepository;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.core.domain.Lot;
 import com.example.erprukainventario.core.domain.Product;
+import com.example.erprukainventario.core.domain.Serials;
 import com.example.erprukainventario.core.ui.Event;
 
 import java.util.ArrayList;
@@ -81,8 +82,12 @@ public class AdjustmentFormViewModel extends ViewModel {
         });
     }
 
-    /** @param lot lote afectado, o null para que la rebaja se descuente por FEFO al aprobar. */
-    public void submit(AdjustmentReason reason, boolean outgoing, String quantityText, String notes, Lot lot) {
+    /**
+     * @param lot         lote afectado, o null para que la rebaja se descuente por FEFO al aprobar.
+     * @param serialsText series separadas por coma o salto de línea (productos con número de serie).
+     */
+    public void submit(AdjustmentReason reason, boolean outgoing, String quantityText, String notes, Lot lot,
+                       String serialsText) {
         Product p = product.getValue();
         if (p == null) {
             messages.setValue(new Event<>("Primero busca el producto."));
@@ -114,11 +119,17 @@ public class AdjustmentFormViewModel extends ViewModel {
             return;
         }
 
+        List<String> serials = p.isSerialized() ? Serials.parse(serialsText) : new ArrayList<>();
+        if (p.isSerialized() && serials.size() != qty) {
+            messages.setValue(new Event<>("Indica una serie por unidad: " + serials.size() + " de " + qty + "."));
+            return;
+        }
+
         busy.setValue(true);
-        adjustments.create(p, lot, sign * qty, reason, notes, ok -> {
+        adjustments.create(p, lot, sign * qty, reason, notes, serials, result -> {
             busy.setValue(false);
-            if (ok) saved.setValue(true);
-            else messages.setValue(new Event<>("No se pudo registrar el ajuste."));
+            if (result.isSuccess()) saved.setValue(true);
+            else messages.setValue(new Event<>(result.getMessage()));
         });
     }
 }

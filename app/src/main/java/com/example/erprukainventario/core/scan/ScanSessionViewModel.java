@@ -91,10 +91,34 @@ public class ScanSessionViewModel extends ViewModel {
         List<ScanLine> updated = new ArrayList<>();
         for (ScanLine line : task.getLines()) {
             if (line.getId().equals(lineId)) {
+                if (line.isSerialized()) return "Este producto se registra por número de serie.";
                 if (!task.getConfig().allowExceedExpected && newQuantity > line.getExpectedQuantity()) {
                     return "No puedes superar lo esperado (" + line.getExpectedQuantity() + " un.).";
                 }
                 updated.add(line.withScanned(newQuantity));
+            } else {
+                updated.add(line);
+            }
+        }
+        dirty = true;
+        uiState.setValue(state().withTask(task.withLines(updated)));
+        return null;
+    }
+
+    /**
+     * Línea con número de serie: la cantidad es la cantidad de series capturadas.
+     * @return mensaje de error si viola las reglas de la sesión; null si se aplicó.
+     */
+    public String setSerials(String lineId, List<String> serials) {
+        ScanTask task = getTask();
+        if (task == null) return "Tarea no cargada.";
+        List<ScanLine> updated = new ArrayList<>();
+        for (ScanLine line : task.getLines()) {
+            if (line.getId().equals(lineId)) {
+                if (!task.getConfig().allowExceedExpected && serials.size() > line.getExpectedQuantity()) {
+                    return "No puedes superar lo esperado (" + line.getExpectedQuantity() + " un.).";
+                }
+                updated.add(line.withSerials(serials));
             } else {
                 updated.add(line);
             }

@@ -75,6 +75,11 @@ public class WorkContext {
         return role() != UserRole.OPERARIO;
     }
 
+    /** Configuración del catálogo (ej. control por número de serie). Lo exige también firestore.rules. */
+    public boolean canConfigureProducts() {
+        return role() != UserRole.OPERARIO;
+    }
+
     /** "Un operario no puede eliminar registros" (guía §1). Lo exige también firestore.rules. */
     public boolean canDeleteRecords() {
         return role() != UserRole.OPERARIO;

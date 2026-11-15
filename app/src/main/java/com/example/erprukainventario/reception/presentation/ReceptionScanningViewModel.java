@@ -4,6 +4,10 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
+import com.example.erprukainventario.core.data.ProductRepository;
+import com.example.erprukainventario.core.data.SerialRepository;
+import com.example.erprukainventario.core.domain.Product;
+import com.example.erprukainventario.core.domain.Serials;
 import com.example.erprukainventario.reception.data.ReceptionRepository;
 import com.example.erprukainventario.reception.domain.PurchaseOrderDetail;
 import com.example.erprukainventario.reception.domain.PurchaseOrderItem;
@@ -13,7 +17,10 @@ import com.example.erprukainventario.core.ui.Event;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import javax.inject.Inject;
 
@@ -30,9 +37,59 @@ public class ReceptionScanningViewModel extends ViewModel {
     private final List<ReceiptEntry> receipts = new ArrayList<>();
     private final MutableLiveData<Event<String>> message = new MutableLiveData<>();
 
+    private final SerialRepository serialRepository;
+    /** Productos con número de serie, por SKU en mayúsculas (las líneas de la OC traen el SKU). */
+    private final Map<String, Product> serializedByCode = new HashMap<>();
+
     @Inject
-    public ReceptionScanningViewModel(ReceptionRepository repository) {
+    public ReceptionScanningViewModel(ReceptionRepository repository, ProductRepository products,
+                                      SerialRepository serialRepository) {
         this.repository = repository;
+        this.serialRepository = serialRepository;
+        products.getProducts(list -> {
+            for (Product p : list) {
+                if (p.isSerialized()) serializedByCode.put(p.getCode().toUpperCase(Locale.ROOT), p);
+            }
+        });
+    }
+
+    /** El producto de la línea controla número de serie (guía §10). */
+    public boolean isSerialized(PurchaseOrderItem item) {
+        return item != null && serializedByCode.containsKey(code(item));
+    }
+
+    private static String code(PurchaseOrderItem item) {
+        return item.getProductCode() != null ? item.getProductCode().toUpperCase(Locale.ROOT) : "";
+    }
+
+    /**
+     * Recepción de un producto con número de serie: antes de sumar, se verifica que
+     * ninguna serie esté ya en esta sesión ni registrada en la empresa.
+     */
+    public void addSerializedReceipt(PurchaseOrderItem item, String lot, Date expiry, String location,
+                                     List<String> serials) {
+        Product product = serializedByCode.get(code(item));
+        if (product == null || serials == null || serials.isEmpty()) return;
+        for (ReceiptEntry r : receipts) {
+            if (!code(item).equalsIgnoreCase(r.getProductCode())) continue;
+            for (String s : serials) {
+                if (r.getSerials().contains(s)) {
+                    message.setValue(new Event<>("La serie " + s + " ya se leyó en esta recepción."));
+                    return;
+                }
+            }
+        }
+        Map<String, List<String>> byProduct = new HashMap<>();
+        byProduct.put(product.getId(), serials);
+        serialRepository.checkReceivable(byProduct, error -> {
+            if (error != null) {
+                message.setValue(new Event<>(error));
+                return;
+            }
+            addReceipt(item, serials.size(), lot, expiry, location, serials);
+            message.setValue(new Event<>("+" + serials.size() + " un. de " + item.getProductName()
+                    + " con series " + Serials.join(serials)));
+        });
     }
 
     public LiveData<ReceptionScanningUiState> getUiState() {
@@ -81,9 +138,14 @@ public class ReceptionScanningViewModel extends ViewModel {
 
     /** Suma unidades recibidas y registra la lectura con su lote, vencimiento y ubicación. */
     public void addReceipt(PurchaseOrderItem item, int quantity, String lot, Date expiry, String location) {
+        addReceipt(item, quantity, lot, expiry, location, null);
+    }
+
+    private void addReceipt(PurchaseOrderItem item, int quantity, String lot, Date expiry, String location,
+                            List<String> serials) {
         if (item == null || quantity <= 0) return;
         receipts.add(new ReceiptEntry(item.getId(), item.getProductCode(), item.getProductName(),
-                quantity, lot, expiry, location));
+                quantity, lot, expiry, location, serials));
         addQuantityToItem(item.getId(), quantity);
     }
 

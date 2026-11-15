@@ -75,6 +75,18 @@ public final class Docs {
         return result;
     }
 
+    /** Lee una lista de textos (ej. números de serie); vacía si no existe. */
+    public static java.util.List<String> strList(DocumentSnapshot d, String field) {
+        java.util.List<String> result = new java.util.ArrayList<>();
+        Object v = d.get(field);
+        if (v instanceof java.util.List) {
+            for (Object o : (java.util.List<?>) v) {
+                if (o instanceof String && !((String) o).isEmpty()) result.add((String) o);
+            }
+        }
+        return result;
+    }
+
     /** Convierte el campo "status" en un enum; si no existe o no calza, el valor por defecto. */
     public static <E extends Enum<E>> E status(DocumentSnapshot d, Class<E> type, E fallback) {
         // d.get + instanceof (no getString): getString lanza excepción si el campo no es texto.

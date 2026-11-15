@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -14,13 +15,21 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import com.example.erprukainventario.R;
 import com.example.erprukainventario.adjustment.presentation.AdjustmentFormActivity;
 import com.example.erprukainventario.core.domain.Product;
+import com.example.erprukainventario.core.domain.SerialNumber;
+import com.example.erprukainventario.core.domain.SerialStatus;
+import com.example.erprukainventario.core.domain.Serials;
 import com.example.erprukainventario.core.scan.BarcodeScannerController;
 import com.example.erprukainventario.core.scan.ScanFeedback;
 import com.example.erprukainventario.core.ui.Dialogs;
 import com.example.erprukainventario.core.ui.LotViews;
+import com.example.erprukainventario.core.ui.SerialCapture;
 import com.example.erprukainventario.databinding.ActivityProductLookupBinding;
 import com.example.erprukainventario.location.presentation.RelocationActivity;
 
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import dagger.hilt.android.AndroidEntryPoint;
@@ -44,6 +53,8 @@ public class ProductLookupActivity extends AppCompatActivity {
     private ScanFeedback feedback;
     private final MovementAdapter movementAdapter = new MovementAdapter();
     private boolean pickMode;
+    /** Captura de series abierta (registro de stock existente), o null. */
+    private SerialCapture serialCapture;
 
     public static Intent pickIntent(Context context) {
         return new Intent(context, ProductLookupActivity.class).putExtra(EXTRA_PICK_MODE, true);
@@ -87,6 +98,16 @@ public class ProductLookupActivity extends AppCompatActivity {
     }
 
     private void onCode(String code) {
+        if (serialCapture != null && serialCapture.isShowing()) {
+            // Registrando series: lo que lee la cámara es una serie, no un producto.
+            String result = serialCapture.offer(code);
+            if (result == null) feedback.success();
+            else if (!result.isEmpty()) feedback.error();
+            binding.cameraPreviewView.postDelayed(() -> {
+                if (serialCapture != null) scanner.resume();
+            }, 700);
+            return;
+        }
         viewModel.lookup(code);
     }
 
@@ -122,6 +143,25 @@ public class ProductLookupActivity extends AppCompatActivity {
         viewModel.getMessage().observe(this, event -> {
             String text = event.consume();
             if (text != null) Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+        });
+
+        viewModel.getSerials().observe(this, this::showSerials);
+
+        viewModel.getSerialFound().observe(this, event -> {
+            SerialNumber s = event.consume();
+            if (s == null || pickMode) return;
+            String when = s.getUpdatedAt() != null
+                    ? new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(s.getUpdatedAt())
+                    : "pendiente de sincronizar";
+            new AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.lookup_serial_found_title, s.getSerial()))
+                    .setMessage(s.getProductName() + " (" + s.getProductCode() + ")\n\n"
+                            + "Estado: " + s.getStatus().getLabel() + "\n"
+                            + "Bodega: " + viewModel.warehouseName(s.getWarehouseId()) + "\n"
+                            + "Última operación: " + s.getReference() + "\n"
+                            + "Por: " + s.getUpdatedByName() + " · " + when)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
         });
 
         viewModel.getMovements().observe(this, list -> {
@@ -163,7 +203,68 @@ public class ProductLookupActivity extends AppCompatActivity {
         binding.btnRelocate.setOnClickListener(v ->
                 startActivity(RelocationActivity.intent(this, p.getCode())));
 
+        // Control por número de serie: lo cambia un supervisor/jefe; el operario solo lo ve.
+        binding.switchSerialized.setOnCheckedChangeListener(null);
+        binding.switchSerialized.setChecked(p.isSerialized());
+        binding.switchSerialized.setEnabled(viewModel.canConfigureProducts());
+        binding.switchSerialized.setOnCheckedChangeListener((button, checked) -> viewModel.setSerialized(checked));
+        showSerials(viewModel.getSerials().getValue());
+
         // Deja la cámara lista para el siguiente producto tras un momento.
         binding.cameraPreviewView.postDelayed(scanner::resume, 1500);
+    }
+
+    /** Series del producto: las de mi bodega primero, luego dónde están las demás (guía §10). */
+    private void showSerials(List<SerialNumber> list) {
+        Product p = viewModel.getProduct().getValue();
+        if (p == null) return;
+        if (list == null || list.isEmpty()) {
+            binding.tvSerials.setVisibility(p.isSerialized() ? View.VISIBLE : View.GONE);
+            binding.tvSerials.setText(R.string.lookup_serials_none);
+            updateRegisterButton(p, 0);
+            return;
+        }
+        String me = viewModel.myWarehouseId();
+        List<String> mine = new ArrayList<>();
+        StringBuilder others = new StringBuilder();
+        for (SerialNumber s : list) {
+            if (s.getStatus() == SerialStatus.EN_BODEGA && me.equals(s.getWarehouseId())) {
+                mine.add(s.getSerial());
+            } else {
+                others.append("\n• ").append(s.getSerial()).append(": ").append(s.getStatus().getLabel());
+                if (s.getStatus() != SerialStatus.DESPACHADO && s.getStatus() != SerialStatus.BAJA) {
+                    others.append(" (").append(viewModel.warehouseName(s.getWarehouseId())).append(")");
+                }
+                if (!s.getReference().isEmpty()) others.append(" · ").append(s.getReference());
+            }
+        }
+        StringBuilder text = new StringBuilder("En tu bodega (").append(mine.size()).append("): ")
+                .append(mine.isEmpty() ? "ninguna" : Serials.join(mine));
+        if (others.length() > 0) text.append("\n\nOtras:").append(others);
+        binding.tvSerials.setText(text.toString());
+        binding.tvSerials.setVisibility(View.VISIBLE);
+        updateRegisterButton(p, mine.size());
+    }
+
+    /**
+     * Al activar el control por serie, el stock que ya había no tiene series: el
+     * supervisor las registra aquí (si no, esas unidades no se podrían despachar).
+     */
+    private void updateRegisterButton(Product p, int registeredHere) {
+        int missing = p.stockIn(viewModel.myWarehouseId()) - registeredHere;
+        boolean show = p.isSerialized() && viewModel.canConfigureProducts() && missing > 0 && !pickMode;
+        binding.btnRegisterSerials.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (!show) return;
+        binding.btnRegisterSerials.setText(getString(R.string.lookup_register_serials_format, missing));
+        binding.btnRegisterSerials.setOnClickListener(v -> {
+            serialCapture = SerialCapture.show(this, p.getName(), 1, missing, null, null,
+                    new String[]{p.getBarcode(), p.getCode()},
+                    viewModel::registerExistingSerials,
+                    () -> {
+                        serialCapture = null;
+                        scanner.resume();
+                    });
+            scanner.resume();
+        });
     }
 }

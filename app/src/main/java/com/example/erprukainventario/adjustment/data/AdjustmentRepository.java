@@ -17,10 +17,11 @@ public interface AdjustmentRepository {
     /**
      * Crea una solicitud PENDIENTE (todavía no mueve stock).
      *
-     * @param lot lote afectado, o null (al aprobar una rebaja se descuenta por FEFO).
+     * @param lot     lote afectado, o null (al aprobar una rebaja se descuenta por FEFO).
+     * @param serials una serie por unidad si el producto controla número de serie (guía §10).
      */
     void create(Product product, Lot lot, int signedQuantity, AdjustmentReason reason, String notes,
-                RepositoryCallback<Boolean> callback);
+                List<String> serials, RepositoryCallback<OperationResult> callback);
 
     /** Solo supervisor/jefe: aplica el ajuste al stock y deja el movimiento firmado. */
     void approve(String adjustmentId, RepositoryCallback<OperationResult> callback);

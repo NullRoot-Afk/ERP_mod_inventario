@@ -96,7 +96,7 @@ public class AdjustmentFormActivity extends AppCompatActivity {
         });
         binding.btnSave.setOnClickListener(v -> viewModel.submit(selectedReason,
                 binding.toggleDirection.getCheckedButtonId() == R.id.btnOut,
-                text(binding.etQuantity), text(binding.etNotes), selectedLot));
+                text(binding.etQuantity), text(binding.etNotes), selectedLot, text(binding.etSerials)));
     }
 
     private void observe() {
@@ -119,6 +119,7 @@ public class AdjustmentFormActivity extends AppCompatActivity {
     }
 
     private void showProduct(Product p) {
+        binding.tilSerials.setVisibility(p != null && p.isSerialized() ? View.VISIBLE : View.GONE);
         if (p == null) {
             binding.tvProductInfo.setText(R.string.adjustment_no_product);
             binding.tvProductInfo.setTextColor(getColor(R.color.text_secondary));

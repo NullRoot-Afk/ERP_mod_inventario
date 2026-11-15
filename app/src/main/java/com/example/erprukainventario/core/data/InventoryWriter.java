@@ -61,8 +61,19 @@ public class InventoryWriter {
 
     public void apply(Writes w, MovementType type, String productId, String productCode,
                       String productName, int delta, String reference, String warehouseId, String lot) {
+        apply(w, type, productId, productCode, productName, delta, reference, warehouseId, lot, null);
+    }
+
+    /** @param serials series de las unidades movidas ("SN1, SN2"), o null (guía §10). */
+    public void apply(Writes w, MovementType type, String productId, String productCode,
+                      String productName, int delta, String reference, String warehouseId, String lot,
+                      String serials) {
         addStockChange(w, productId, warehouseId, delta);
-        addMovement(w, type, productId, productCode, productName, delta, reference, warehouseId, lot);
+        if (delta == 0) return;
+        Map<String, Object> data = movementData(type, productId, productCode, productName, delta, reference,
+                warehouseId, lot);
+        if (serials != null && !serials.isEmpty()) data.put("serials", serials);
+        w.set(firestore.collection(FirestoreCollections.MOVEMENTS).document(), data);
     }
 
     /**

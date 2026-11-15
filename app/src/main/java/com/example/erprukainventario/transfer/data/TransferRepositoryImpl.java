@@ -10,9 +10,13 @@ import com.example.erprukainventario.core.data.FirestoreCollections;
 import com.example.erprukainventario.core.data.GuardedCommit;
 import com.example.erprukainventario.core.data.InventoryWriter;
 import com.example.erprukainventario.core.data.LotRepository;
+import com.example.erprukainventario.core.data.ProductRepository;
+import com.example.erprukainventario.core.data.SerialRepository;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.core.domain.MovementType;
 import com.example.erprukainventario.core.domain.OperationResult;
+import com.example.erprukainventario.core.domain.SerialStatus;
+import com.example.erprukainventario.core.domain.Serials;
 import com.example.erprukainventario.core.scan.ScanConfig;
 import com.example.erprukainventario.core.scan.ScanLine;
 import com.example.erprukainventario.core.scan.ScanLines;
@@ -46,7 +50,7 @@ import javax.inject.Singleton;
  *                         destinationWarehouseId, destinationWarehouseName, status, lineCount,
  *                         notes, createdByName, carrier, sentAt, receivedAt, hasDiscrepancy)
  *         TRANSFERS/{id}/ITEMS/{id} (productId, productCode, productName, barcode, location,
- *                         quantity, sentQuantity, receivedQuantity)
+ *                         quantity, sentQuantity, receivedQuantity, lots, serials, receivedSerials)
  *
  * Flujo: POR_ENVIAR (origen escanea y despacha: sale stock del origen)
  *        -> EN_TRANSITO (destino escanea al recibir: entra stock al destino) -> RECIBIDA.
@@ -63,10 +67,15 @@ public class TransferRepositoryImpl implements TransferRepository {
     private final DemoCatalog catalog;
     private final LotRepository lots;
     private final GuardedCommit guarded;
+    private final ProductRepository products;
+    private final SerialRepository serials;
 
     @Inject
     public TransferRepositoryImpl(FirebaseFirestore firestore, WorkContext context, InventoryWriter inventory,
-                                  DemoCatalog catalog, LotRepository lots, GuardedCommit guarded) {
+                                  DemoCatalog catalog, LotRepository lots, GuardedCommit guarded,
+                                  ProductRepository products, SerialRepository serials) {
+        this.products = products;
+        this.serials = serials;
         this.firestore = firestore;
         this.context = context;
         this.inventory = inventory;
@@ -206,7 +215,12 @@ public class TransferRepositoryImpl implements TransferRepository {
                     List<ScanLine> lines = new ArrayList<>();
                     for (DocumentSnapshot item : itemsTask.getResult().getDocuments()) {
                         int expected = sending ? Docs.num(item, "quantity") : Docs.num(item, "sentQuantity");
-                        if (expected > 0) lines.add(ScanLines.fromDoc(item, expected, 0));
+                        if (expected <= 0) continue;
+                        ScanLine line = ScanLines.fromDoc(item, expected, 0);
+                        // Al recibir, las series de la línea son exactamente las que se enviaron.
+                        List<String> sentSerials = sending ? null : Docs.strList(item, "serials");
+                        lines.add(sentSerials != null && !sentSerials.isEmpty()
+                                ? line.withSerialControl(sentSerials) : line);
                     }
                     ScanConfig config = sending
                             ? new ScanConfig.Builder("Transferencia · envío")
@@ -224,8 +238,14 @@ public class TransferRepositoryImpl implements TransferRepository {
                     String subtitle = sending
                             ? "Hacia " + t.getDestinationName()
                             : "Desde " + t.getOriginName() + (t.getCarrier().isEmpty() ? "" : " · " + t.getCarrier());
-                    List<ScanLine> ordered = sending ? ScanLines.sortedByLocation(lines) : lines;
-                    callback.onResult(new ScanTask(t.getId(), t.getCode(), subtitle, ordered, config));
+                    if (!sending) {
+                        callback.onResult(new ScanTask(t.getId(), t.getCode(), subtitle, lines, config));
+                        return;
+                    }
+                    // Al enviar: los productos con número de serie piden la serie de cada unidad.
+                    products.getSerializedProductIds(serialized -> callback.onResult(new ScanTask(
+                            t.getId(), t.getCode(), subtitle,
+                            ScanLines.withSerialControl(ScanLines.sortedByLocation(lines), serialized), config)));
                 })
                 .addOnFailureListener(e -> callback.onResult(null));
     }
@@ -248,6 +268,19 @@ public class TransferRepositoryImpl implements TransferRepository {
             quantities.put(line.getProductId(), (prev != null ? prev : 0) + line.getScannedQuantity());
         }
 
+        String missing = ScanLines.missingSerials(lines);
+        if (missing != null) {
+            callback.onResult(OperationResult.error(missing));
+            return;
+        }
+        serials.checkInMyWarehouse(ScanLines.serialsByProduct(lines), serialError -> {
+            if (serialError != null) callback.onResult(OperationResult.error(serialError));
+            else commitSend(ref, lines, quantities, carrier, callback);
+        });
+    }
+
+    private void commitSend(DocumentReference ref, List<ScanLine> lines, Map<String, Integer> quantities,
+                            String carrier, RepositoryCallback<OperationResult> callback) {
         // FEFO: lo que sale hacia la otra bodega es lo que vence antes (guía §10).
         lots.planFefo(quantities, plan -> guarded.run(ref,
                 doc -> doc.exists() && toTransfer(doc).getStatus() == TransferStatus.POR_ENVIAR
@@ -263,10 +296,15 @@ public class TransferRepositoryImpl implements TransferRepository {
                         Map<String, Object> item = new HashMap<>();
                         item.put("sentQuantity", line.getScannedQuantity());
                         if (lotLabel != null) item.put("lots", lotLabel);
+                        if (line.isSerialized()) item.put("serials", line.getSerials());
                         w.update(ref.collection(FirestoreCollections.ITEMS).document(line.getId()), item);
+                        // Las series viajan "en tránsito" hacia el destino hasta que éste las reciba.
+                        serials.move(w, line.getProductId(), line.getSerials(), SerialStatus.EN_TRANSITO,
+                                t.getDestinationId(), t.getCode());
                         inventory.apply(w, MovementType.TRANSFERENCIA_SALIDA, line.getProductId(), line.getProductCode(),
                                 line.getProductName(), -line.getScannedQuantity(),
-                                t.getCode() + " → " + t.getDestinationName(), t.getOriginId(), lotLabel);
+                                t.getCode() + " → " + t.getDestinationName(), t.getOriginId(), lotLabel,
+                                Serials.join(line.getSerials()));
                     }
                     Map<String, Object> data = new HashMap<>();
                     data.put("status", TransferStatus.EN_TRANSITO.name());
@@ -281,6 +319,11 @@ public class TransferRepositoryImpl implements TransferRepository {
     }
 
     private void saveReceive(String taskId, List<ScanLine> lines, RepositoryCallback<OperationResult> callback) {
+        String missing = ScanLines.missingSerials(lines);
+        if (missing != null) {
+            callback.onResult(OperationResult.error(missing));
+            return;
+        }
         DocumentReference ref = firestore.collection(FirestoreCollections.TRANSFERS).document(taskId);
         guarded.run(ref,
                 doc -> doc.exists() && toTransfer(doc).getStatus() == TransferStatus.EN_TRANSITO
@@ -291,14 +334,26 @@ public class TransferRepositoryImpl implements TransferRepository {
                     int units = 0;
                     for (ScanLine line : lines) {
                         units += line.getScannedQuantity();
-                        w.update(ref.collection(FirestoreCollections.ITEMS).document(line.getId()),
-                                "receivedQuantity", line.getScannedQuantity());
+                        Map<String, Object> item = new HashMap<>();
+                        item.put("receivedQuantity", line.getScannedQuantity());
+                        if (line.isSerialized()) item.put("receivedSerials", line.getSerials());
+                        w.update(ref.collection(FirestoreCollections.ITEMS).document(line.getId()), item);
+                        serials.move(w, line.getProductId(), line.getSerials(), SerialStatus.EN_BODEGA,
+                                t.getDestinationId(), t.getCode());
                         inventory.apply(w, MovementType.TRANSFERENCIA_ENTRADA, line.getProductId(), line.getProductCode(),
                                 line.getProductName(), line.getScannedQuantity(),
-                                t.getCode() + " ← " + t.getOriginName(), t.getDestinationId(), null);
+                                t.getCode() + " ← " + t.getOriginName(), t.getDestinationId(), null,
+                                Serials.join(line.getSerials()));
                         if (line.difference() != 0) {
                             discrepancies.append("\n• ").append(line.getProductName()).append(": enviado ")
                                     .append(line.getExpectedQuantity()).append(", recibido ").append(line.getScannedQuantity());
+                        }
+                        // Las series enviadas que no llegaron quedan EN_TRANSITO (se pueden rastrear).
+                        List<String> notArrived = new ArrayList<>(line.getAllowedSerials());
+                        notArrived.removeAll(line.getSerials());
+                        if (!notArrived.isEmpty()) {
+                            discrepancies.append("\n• ").append(line.getProductName()).append(": series no recibidas ")
+                                    .append(Serials.join(notArrived));
                         }
                     }
                     Map<String, Object> data = new HashMap<>();

@@ -30,6 +30,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import com.example.erprukainventario.R;
 import com.example.erprukainventario.core.domain.LocationCode;
 import com.example.erprukainventario.core.ui.PhotoCapture;
+import com.example.erprukainventario.core.ui.SerialCapture;
 import com.example.erprukainventario.databinding.ActivityReceptionScanningBinding;
 import com.example.erprukainventario.databinding.DialogDiscrepancyBinding;
 import com.example.erprukainventario.databinding.DialogQuantityInputBinding;
@@ -66,6 +67,10 @@ public class ReceptionScanningActivity extends AppCompatActivity {
     private BarcodeScanner barcodeScanner;
     private boolean isScanningPaused = false;
     private boolean cameraStarted = false;
+    /** Captura de series abierta, o null. */
+    private SerialCapture serialCapture;
+    private String lastSerialRead;
+    private long lastSerialReadAt;
 
     // Reemplaza requestPermissions/onRequestPermissionsResult.
     private final ActivityResultLauncher<String> cameraPermissionLauncher =
@@ -259,6 +264,10 @@ public class ReceptionScanningActivity extends AppCompatActivity {
     private void onBarcodeScanned(String barcode) {
         isScanningPaused = true;
         runOnUiThread(() -> {
+            if (serialCapture != null && serialCapture.isShowing()) {
+                offerSerial(barcode);
+                return;
+            }
             PurchaseOrderItem item = viewModel.findMatchingItem(barcode);
             if (item != null) {
                 showQuantityDialog(item);
@@ -374,12 +383,49 @@ public class ReceptionScanningActivity extends AppCompatActivity {
                     return;
                 }
             }
+            if (viewModel.isSerialized(item)) {
+                // Guía §10: una serie por unidad antes de sumar al stock.
+                dialog.setOnDismissListener(null);
+                dialog.dismiss();
+                openSerialCapture(item, qtyToAdd, text(dialogBinding.etLot), expiry[0], location);
+                return;
+            }
             viewModel.addReceipt(item, qtyToAdd, text(dialogBinding.etLot), expiry[0], location);
             Toast.makeText(this, "+" + qtyToAdd + " un. sumadas a " + item.getProductName(), Toast.LENGTH_SHORT).show();
             dialog.dismiss();
         });
 
         dialog.show();
+    }
+
+    // ------------------------------------------------------------------
+    // Números de serie (guía §10)
+    // ------------------------------------------------------------------
+
+    private void openSerialCapture(PurchaseOrderItem item, int quantity, String lot, Date expiry, String location) {
+        serialCapture = SerialCapture.show(this, item.getProductName(), quantity, quantity, null, null,
+                new String[]{item.getBarcode(), item.getProductCode()},
+                serials -> viewModel.addSerializedReceipt(item, lot, expiry, location, serials),
+                () -> {
+                    serialCapture = null;
+                    isScanningPaused = false;
+                });
+        isScanningPaused = false; // la cámara sigue leyendo: cada lectura es una serie
+    }
+
+    private void offerSerial(String code) {
+        long now = android.os.SystemClock.elapsedRealtime();
+        // La misma etiqueta sigue frente a la cámara: no se cuenta dos veces.
+        boolean repeated = code.equals(lastSerialRead) && now - lastSerialReadAt < 2500;
+        lastSerialRead = code;
+        lastSerialReadAt = now;
+        if (!repeated) {
+            String error = serialCapture.offer(code);
+            if (error == null) binding.cameraPreviewView.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+        }
+        binding.cameraPreviewView.postDelayed(() -> {
+            if (serialCapture != null) isScanningPaused = false;
+        }, 700);
     }
 
     private void pickExpiry(Date[] holder, DialogQuantityInputBinding b) {

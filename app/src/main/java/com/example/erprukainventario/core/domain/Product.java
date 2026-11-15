@@ -14,9 +14,12 @@ public class Product {
     private final String category;
     private final int minStock;
     private final Map<String, Integer> stockByWarehouse;
+    /** Controla número de serie: cada unidad se identifica al entrar y salir (guía §10). */
+    private final boolean serialized;
 
     public Product(String id, String code, String name, String barcode, String location,
-                   String category, int minStock, Map<String, Integer> stockByWarehouse) {
+                   String category, int minStock, Map<String, Integer> stockByWarehouse, boolean serialized) {
+        this.serialized = serialized;
         this.id = id;
         this.code = code;
         this.name = name;
@@ -35,6 +38,7 @@ public class Product {
     public String getCategory() { return category; }
     public int getMinStock() { return minStock; }
     public Map<String, Integer> getStockByWarehouse() { return stockByWarehouse; }
+    public boolean isSerialized() { return serialized; }
 
     public int stockIn(String warehouseId) {
         Integer qty = stockByWarehouse.get(warehouseId);

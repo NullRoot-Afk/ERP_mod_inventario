@@ -1,6 +1,8 @@
 package com.example.erprukainventario.reception.domain;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 /**
  * Una lectura confirmada durante la recepción: cuántas unidades de qué línea,
@@ -16,9 +18,12 @@ public class ReceiptEntry {
     private final String lot;
     private final Date expiryDate;
     private final String location;
+    /** Una serie por unidad si el producto controla número de serie; vacía si no (guía §10). */
+    private final List<String> serials;
 
     public ReceiptEntry(String itemId, String productCode, String productName, int quantity,
-                        String lot, Date expiryDate, String location) {
+                        String lot, Date expiryDate, String location, List<String> serials) {
+        this.serials = serials != null ? new ArrayList<>(serials) : new ArrayList<>();
         this.itemId = itemId;
         this.productCode = productCode;
         this.productName = productName;
@@ -37,4 +42,5 @@ public class ReceiptEntry {
     public Date getExpiryDate() { return expiryDate; }
     /** Ubicación canónica asignada, o null si no se informó. */
     public String getLocation() { return location; }
+    public List<String> getSerials() { return serials; }
 }

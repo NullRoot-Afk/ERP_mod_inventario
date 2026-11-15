@@ -40,7 +40,8 @@ public class MovementAdapter extends RecyclerView.Adapter<MovementAdapter.ViewHo
         b.tvType.setText(m.getType().getLabel());
         String when = m.getCreatedAt() != null ? format.format(m.getCreatedAt()) : "pendiente de sincronizar";
         String lot = m.getLot().isEmpty() ? "" : " · Lote " + m.getLot();
-        b.tvDetail.setText(m.getReference() + lot + " · " + m.getUserName() + " · " + when);
+        String serials = m.getSerials().isEmpty() ? "" : " · S/N " + m.getSerials();
+        b.tvDetail.setText(m.getReference() + lot + serials + " · " + m.getUserName() + " · " + when);
         if (m.getType() == MovementType.REUBICACION) {
             // No cambia el stock: se muestra cuántas unidades se trasladaron, sin signo.
             b.tvQuantity.setText("⇄ " + Math.abs(m.getQuantity()));

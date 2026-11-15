@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import com.example.erprukainventario.R;
 import com.example.erprukainventario.core.domain.OperationResult;
 import com.example.erprukainventario.core.ui.Dialogs;
+import com.example.erprukainventario.core.ui.SerialCapture;
 import com.example.erprukainventario.databinding.ActivityScanSessionBinding;
 
 import java.util.HashMap;
@@ -39,6 +40,8 @@ public class ScanSessionActivity extends AppCompatActivity {
     private ScanLineAdapter adapter;
     private BarcodeScannerController scanner;
     private ScanFeedback feedback;
+    /** Captura de series abierta, o null. */
+    private SerialCapture serialCapture;
 
     public static Intent intent(Context context, String mode, String taskId) {
         return new Intent(context, ScanSessionActivity.class)
@@ -153,6 +156,16 @@ public class ScanSessionActivity extends AppCompatActivity {
     // ------------------------------------------------------------------
 
     private void onCodeRead(String code) {
+        if (serialCapture != null && serialCapture.isShowing()) {
+            // Con la captura de series abierta, lo que lee la cámara es una serie.
+            String result = serialCapture.offer(code);
+            if (result == null) feedback.success();
+            else if (!result.isEmpty()) feedback.error();
+            binding.cameraPreviewView.postDelayed(() -> {
+                if (serialCapture != null) scanner.resume();
+            }, 700);
+            return;
+        }
         ScanTask task = viewModel.getTask();
         if (task == null) {
             scanner.resume();
@@ -166,6 +179,10 @@ public class ScanSessionActivity extends AppCompatActivity {
             return;
         }
         feedback.success();
+        if (line.isSerialized()) {
+            openSerialCapture(task, line);
+            return;
+        }
         String meta = task.getConfig().showExpected
                 ? getString(R.string.scan_meta_format, line.getScannedQuantity(), line.getExpectedQuantity(), line.getLocation())
                 : getString(R.string.scan_meta_blind_format, line.getScannedQuantity(), line.getLocation());
@@ -180,6 +197,10 @@ public class ScanSessionActivity extends AppCompatActivity {
     private void showEditDialog(ScanLine line) {
         ScanTask task = viewModel.getTask();
         if (task == null) return;
+        if (line.isSerialized()) {
+            openSerialCapture(task, line);
+            return;
+        }
         scanner.pause();
         String meta = task.getConfig().showExpected
                 ? getString(R.string.scan_meta_format, line.getScannedQuantity(), line.getExpectedQuantity(), line.getLocation())
@@ -188,6 +209,30 @@ public class ScanSessionActivity extends AppCompatActivity {
                 task.getConfig().quantityLabel, getString(R.string.scan_edit_confirm), line.getScannedQuantity(), 0,
                 qty -> applyQuantity(line, qty),
                 scanner::resume);
+    }
+
+    /**
+     * Producto con número de serie (guía §10): se captura la serie de cada unidad
+     * y la cantidad es cuántas series hay. La cámara sigue leyendo mientras tanto.
+     */
+    private void openSerialCapture(ScanTask task, ScanLine line) {
+        int max;
+        if (!line.getAllowedSerials().isEmpty()) max = line.getAllowedSerials().size();
+        else max = task.getConfig().allowExceedExpected ? Integer.MAX_VALUE : line.getExpectedQuantity();
+        serialCapture = SerialCapture.show(this, line.getProductName(), 0, max, line.getSerials(),
+                line.getAllowedSerials(), new String[]{line.getBarcode(), line.getProductCode()},
+                serials -> {
+                    String error = viewModel.setSerials(line.getId(), serials);
+                    if (error != null) {
+                        feedback.error();
+                        Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+                    }
+                },
+                () -> {
+                    serialCapture = null;
+                    scanner.resume();
+                });
+        scanner.resume();
     }
 
     private void applyQuantity(ScanLine line, int newQuantity) {

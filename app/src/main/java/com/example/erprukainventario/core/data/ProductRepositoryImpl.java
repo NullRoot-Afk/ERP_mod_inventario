@@ -6,21 +6,25 @@ import com.example.erprukainventario.auth.data.RepositoryCallback;
 import com.example.erprukainventario.auth.domain.Warehouse;
 import com.example.erprukainventario.core.domain.Movement;
 import com.example.erprukainventario.core.domain.MovementType;
+import com.example.erprukainventario.core.domain.OperationResult;
 import com.example.erprukainventario.core.domain.Product;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.WriteBatch;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
  * Modelo: PRODUCTS/{id} (companyId, code, name, barcode, location, category, minStock,
- *                         stock: {warehouseId: cantidad})
+ *                         stock: {warehouseId: cantidad}, serialized)
  *         MOVEMENTS/{id} (companyId, warehouseId, productId, type, quantity, reference,
  *                         userId, userName, createdAt)
  *         WAREHOUSES/{id} (companyId, name)
@@ -35,11 +39,13 @@ public class ProductRepositoryImpl implements ProductRepository {
 
     private final FirebaseFirestore firestore;
     private final WorkContext context;
+    private final GuardedCommit guarded;
 
     @Inject
-    public ProductRepositoryImpl(FirebaseFirestore firestore, WorkContext context) {
+    public ProductRepositoryImpl(FirebaseFirestore firestore, WorkContext context, GuardedCommit guarded) {
         this.firestore = firestore;
         this.context = context;
+        this.guarded = guarded;
     }
 
     @Override
@@ -197,8 +203,38 @@ public class ProductRepositoryImpl implements ProductRepository {
                 location != null ? location : generalLocation,
                 Docs.str(doc, "", "category"),
                 Docs.num(doc, "minStock"),
-                Docs.intMap(doc, "stock")
+                Docs.intMap(doc, "stock"),
+                Boolean.TRUE.equals(doc.getBoolean("serialized"))
         );
+    }
+
+    @Override
+    public void setSerialized(String productId, boolean serialized, RepositoryCallback<OperationResult> callback) {
+        if (!context.canConfigureProducts()) {
+            callback.onResult(OperationResult.error("Solo un supervisor o jefe de bodega cambia esta configuración."));
+            return;
+        }
+        if (productId == null || productId.isEmpty()) {
+            callback.onResult(OperationResult.error("Producto inválido."));
+            return;
+        }
+        WriteBatch batch = firestore.batch();
+        batch.update(firestore.collection(FirestoreCollections.PRODUCTS).document(productId), "serialized", serialized);
+        guarded.commitLocally(batch, serialized
+                        ? "Desde ahora se pedirá el número de serie de cada unidad."
+                        : "El producto ya no controla número de serie.",
+                "No se pudo guardar el cambio.", callback);
+    }
+
+    @Override
+    public void getSerializedProductIds(RepositoryCallback<Set<String>> callback) {
+        getProducts(products -> {
+            Set<String> ids = new HashSet<>();
+            for (Product p : products) {
+                if (p.isSerialized()) ids.add(p.getId());
+            }
+            callback.onResult(ids);
+        });
     }
 
     private static Movement toMovement(DocumentSnapshot doc) {
@@ -217,7 +253,8 @@ public class ProductRepositoryImpl implements ProductRepository {
                 Docs.str(doc, "", "warehouseId"),
                 Docs.str(doc, "", "productName"),
                 Docs.str(doc, "", "lot"),
-                Docs.date(doc, "createdAt")
+                Docs.date(doc, "createdAt"),
+                Docs.str(doc, "", "serials")
         );
     }
 }

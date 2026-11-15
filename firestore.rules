@@ -17,6 +17,9 @@ rules_version = '2';
 //      dos dispositivos hayan trabajado sin conexión sobre lo mismo.
 //   4. Bitácora inmutable (guía §10): MOVEMENTS no se edita ni se borra,
 //      y cada movimiento queda firmado con el uid real de quien lo hizo.
+//   5. Números de serie (guía §10): cada unidad existe una vez y su estado
+//      solo cambia por caminos válidos (no se recibe dos veces, no se
+//      despacha dos veces, solo la saca la bodega que la tiene).
 //
 // REQUISITOS DE DATOS (revisar antes de publicar):
 //   - Cada usuario debe tener su documento en USERS/{uid de Firebase Auth}
@@ -130,7 +133,9 @@ service cloud.firestore {
       // con incrementos dentro del mismo batch que su movimiento y su cambio de
       // estado: si éste se rechaza, el incremento también.
       allow create: if writesMyCompany();
-      allow update: if keepsCompany();
+      // Activar o quitar el control por número de serie es configuración: solo supervisor.
+      allow update: if keepsCompany()
+                    && (isSupervisor() || !('serialized' in changedKeys()));
       allow delete: if false;
     }
 
@@ -190,6 +195,38 @@ service cloud.firestore {
       // repetirlo descontaría el stock dos veces).
       allow update: if keepsCompany()
                     && !(oldStatus() == 'RETIRADO' && 'retiredAt' in changedKeys());
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // Números de serie (guía §10): dónde está cada unidad
+    // ---------------------------------------------------------------
+
+    // La serie está (o viene en tránsito hacia) mi bodega.
+    function serialIsHere() {
+      return resource.data.get('warehouseId', '') == myWarehouse();
+    }
+
+    // Una serie en bodega no se vuelve a recibir, una despachada no se
+    // despacha otra vez y solo sale la bodega que la tiene. Como cada
+    // operación va en un único batch, el rechazo descarta también su stock.
+    function validSerialMove(from, to) {
+      return from == 'EN_BODEGA' && to in ['DESPACHADO', 'EN_TRANSITO'] && serialIsHere()
+          || from == 'EN_BODEGA' && to == 'BAJA' && serialIsHere() && isSupervisor()
+          || from == 'EN_TRANSITO' && to == 'EN_BODEGA' && serialIsHere()
+          || from in ['DESPACHADO', 'BAJA'] && to == 'EN_BODEGA'
+             && request.resource.data.warehouseId == myWarehouse();
+    }
+
+    match /SERIALS/{serialId} {
+      // Antes de recibir, la app lee la serie por id para saber si ya existe:
+      // leer una que no existe está permitido (el id lleva la empresa).
+      allow get: if signedIn() && (resource == null || resource.data.companyId == myCompany());
+      allow list: if readsMyCompany();
+      allow create: if writesMyCompany()
+                    && newStatus() == 'EN_BODEGA'
+                    && request.resource.data.warehouseId == myWarehouse();
+      allow update: if keepsCompany() && validSerialMove(oldStatus(), newStatus());
       allow delete: if false;
     }
 

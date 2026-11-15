@@ -140,6 +140,18 @@
     <string name="adjustment_approval_note">El ajuste quedará pendiente hasta que un supervisor o jefe de bodega lo apruebe. Recién entonces se modifica el stock.</string>
     <string name="adjustment_submit">Enviar a aprobación</string>
     <string name="adjustment_product_format">%1$s\nSKU %2$s · Ubicación %3$s\nStock en tu bodega: %4$d un.</string>
+    <string name="serial_capture_title">Números de serie</string>
+    <string name="serial_capture_hint">Apunta la cámara a la etiqueta de serie de cada unidad, o escríbela. Toca una serie para quitarla.</string>
+    <string name="serial_capture_input">N° de serie</string>
+    <string name="serial_capture_add">Agregar</string>
+    <string name="serial_capture_confirm">Confirmar series</string>
+    <string name="serial_capture_counter_exact_format">%1$d de %2$d series</string>
+    <string name="serial_capture_counter_format">%1$d series</string>
+    <string name="serial_capture_row_format">%1$d. %2$s</string>
+    <string name="serial_capture_remove_format">Quitar serie %1$s</string>
+    <string name="serial_capture_full_format">Ya están las %1$d series.</string>
+    <string name="adjustment_serials">Números de serie</string>
+    <string name="adjustment_serials_helper">Este producto controla número de serie: una serie por unidad, separadas por coma o salto de línea.</string>
     <string name="adjustment_lot">Lote afectado</string>
     <string name="adjustment_lot_helper">Si no lo indicas, la rebaja se descuenta del lote que vence primero (FEFO).</string>
     <string name="adjustment_lot_auto">Sin indicar (FEFO)</string>
@@ -154,7 +166,7 @@
     <string name="lookup_report_adjustment">Reportar ajuste (merma, daño…)</string>
     <string name="lookup_movements">Últimos movimientos</string>
     <string name="lookup_no_movements">Sin movimientos registrados</string>
-    <string name="lookup_not_found_format">No hay un producto con el código %1$s</string>
+    <string name="lookup_not_found_format">No hay un producto ni un número de serie %1$s</string>
     <string name="lookup_units_format">%1$d un.</string>
     <string name="lookup_stock_label_format">Stock en %1$s · mínimo %2$d</string>
     <string name="lookup_no_other_stock">Sin stock en otras bodegas</string>
@@ -193,6 +205,11 @@
     <!-- Lotes y vencimientos (guía §10) -->
     <string name="lookup_relocate">Reubicar producto</string>
     <string name="lookup_lots">Lotes y vencimientos</string>
+    <string name="lookup_serials">Números de serie</string>
+    <string name="lookup_serialized_switch">Controla número de serie</string>
+    <string name="lookup_serials_none">Aún no hay series registradas de este producto.</string>
+    <string name="lookup_serial_found_title">Serie %1$s</string>
+    <string name="lookup_register_serials_format">Registrar series del stock existente (%1$d sin serie)</string>
     <string name="lookup_no_lots">Sin lotes registrados en esta bodega</string>
     <string name="lot_expires_format">Vence %1$s</string>
     <string name="lot_no_expiry">Sin vencimiento</string>

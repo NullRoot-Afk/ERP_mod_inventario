@@ -14,9 +14,11 @@ public class Movement {
     private final String productName;
     private final String lot;
     private final Date createdAt;
+    private final String serials;
 
     public Movement(MovementType type, int quantity, String reference, String userId, String userName,
-                    String warehouseId, String productName, String lot, Date createdAt) {
+                    String warehouseId, String productName, String lot, Date createdAt, String serials) {
+        this.serials = serials != null ? serials : "";
         this.type = type;
         this.quantity = quantity;
         this.reference = reference;
@@ -38,4 +40,6 @@ public class Movement {
     /** Lote asociado (guía §10), vacío si no aplica. */
     public String getLot() { return lot; }
     public Date getCreatedAt() { return createdAt; }
+    /** Números de serie de las unidades movidas ("SN1, SN2"), vacío si no aplica. */
+    public String getSerials() { return serials; }
 }

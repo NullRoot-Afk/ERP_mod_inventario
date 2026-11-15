@@ -237,6 +237,50 @@
                 android:layout_marginTop="8dp"
                 android:orientation="vertical" />
 
+            <!-- ===== Números de serie (guía §10) ===== -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="@string/lookup_serials"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switchSerialized"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/lookup_serialized_switch"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tvSerials"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_card_default"
+                android:lineSpacingExtra="2dp"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:visibility="gone"
+                tools:text="En tu bodega (2): SN-001, SN-002"
+                tools:visibility="visible" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnRegisterSerials"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAllCaps="false"
+                android:textColor="@color/text_accent"
+                android:visibility="gone"
+                tools:text="Registrar series del stock existente (5 sin serie)"
+                tools:visibility="visible" />
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

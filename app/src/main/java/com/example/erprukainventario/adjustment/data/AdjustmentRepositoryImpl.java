@@ -12,6 +12,7 @@ import com.example.erprukainventario.core.data.FirestoreCollections;
 import com.example.erprukainventario.core.data.GuardedCommit;
 import com.example.erprukainventario.core.data.InventoryWriter;
 import com.example.erprukainventario.core.data.LotRepository;
+import com.example.erprukainventario.core.data.SerialRepository;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.core.data.Writes;
 import com.example.erprukainventario.core.domain.Fefo;
@@ -20,6 +21,8 @@ import com.example.erprukainventario.core.domain.LotTake;
 import com.example.erprukainventario.core.domain.MovementType;
 import com.example.erprukainventario.core.domain.OperationResult;
 import com.example.erprukainventario.core.domain.Product;
+import com.example.erprukainventario.core.domain.SerialStatus;
+import com.example.erprukainventario.core.domain.Serials;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
@@ -37,7 +40,7 @@ import javax.inject.Singleton;
 
 /**
  * Modelo: ADJUSTMENTS/{id} (companyId, warehouseId, productId, productCode, productName,
- *                           quantity (con signo), reason, notes, reference, lotId, lotNumber, status,
+ *                           quantity (con signo), reason, notes, reference, lotId, lotNumber, serials, status,
  *                           createdById, createdByName, createdAt,
  *                           reviewedById, reviewedByName, reviewedAt, reviewNote)
  *
@@ -56,11 +59,13 @@ public class AdjustmentRepositoryImpl implements AdjustmentRepository {
     private final DemoCatalog catalog;
     private final GuardedCommit guarded;
     private final LotRepository lots;
+    private final SerialRepository serialRepository;
 
     @Inject
     public AdjustmentRepositoryImpl(FirebaseFirestore firestore, WorkContext context, InventoryWriter inventory,
                                     AdjustmentWriter writer, DemoCatalog catalog, GuardedCommit guarded,
-                                    LotRepository lots) {
+                                    LotRepository lots, SerialRepository serialRepository) {
+        this.serialRepository = serialRepository;
         this.firestore = firestore;
         this.context = context;
         this.inventory = inventory;
@@ -101,17 +106,41 @@ public class AdjustmentRepositoryImpl implements AdjustmentRepository {
 
     @Override
     public void create(Product product, Lot lot, int signedQuantity, AdjustmentReason reason, String notes,
-                       RepositoryCallback<Boolean> callback) {
+                       List<String> serials, RepositoryCallback<OperationResult> callback) {
         if (product == null || signedQuantity == 0 || context.companyId() == null) {
-            callback.onResult(false);
+            callback.onResult(OperationResult.error("No se pudo registrar el ajuste."));
             return;
         }
-        WriteBatch batch = firestore.batch();
-        writer.addPending(Writes.of(batch), product.getId(), product.getCode(), product.getName(),
-                signedQuantity, reason, notes, "Manual",
-                lot != null ? lot.getId() : null, lot != null ? lot.getLotNumber() : null);
-        // Sin red responde al tiro: el reporte queda en la cola offline.
-        guarded.commitLocally(batch, "", "", r -> callback.onResult(r.isSuccess()));
+        List<String> serialList = serials != null ? serials : new ArrayList<>();
+        if (product.isSerialized() && serialList.size() != Math.abs(signedQuantity)) {
+            callback.onResult(OperationResult.error("Indica una serie por unidad (" + Math.abs(signedQuantity) + ")."));
+            return;
+        }
+        checkSerials(product.getId(), signedQuantity, serialList, error -> {
+            if (error != null) {
+                callback.onResult(OperationResult.error(error));
+                return;
+            }
+            WriteBatch batch = firestore.batch();
+            writer.addPending(Writes.of(batch), product.getId(), product.getCode(), product.getName(),
+                    signedQuantity, reason, notes, "Manual",
+                    lot != null ? lot.getId() : null, lot != null ? lot.getLotNumber() : null, serialList);
+            // Sin red responde al tiro: el reporte queda en la cola offline.
+            guarded.commitLocally(batch, "", "No se pudo registrar el ajuste.", callback);
+        });
+    }
+
+    /** Una rebaja exige series que estén en esta bodega; una entrada, series que no estén en la empresa. */
+    private void checkSerials(String productId, int signedQuantity, List<String> serialList,
+                              RepositoryCallback<String> callback) {
+        if (serialList == null || serialList.isEmpty()) {
+            callback.onResult(null);
+            return;
+        }
+        Map<String, List<String>> byProduct = new HashMap<>();
+        byProduct.put(productId, serialList);
+        if (signedQuantity < 0) serialRepository.checkInMyWarehouse(byProduct, callback);
+        else serialRepository.checkReceivable(byProduct, callback);
     }
 
     @Override
@@ -121,25 +150,51 @@ public class AdjustmentRepositoryImpl implements AdjustmentRepository {
             return;
         }
         DocumentReference ref = firestore.collection(FirestoreCollections.ADJUSTMENTS).document(adjustmentId);
-        // Los lotes del producto se leen antes: la transacción no admite consultas
-        // (igual que el plan FEFO del despacho). Sin red, ambas lecturas salen del caché.
+        // Los lotes del producto (y el estado de sus series) se leen antes: la transacción
+        // no admite consultas, igual que el plan FEFO del despacho. Sin red, salen del caché.
         ref.get().addOnCompleteListener(read -> {
-            String productId = read.isSuccessful() && read.getResult() != null
-                    ? read.getResult().getString("productId") : null;
-            lots.getLotsForProduct(productId, productLots ->
-                    // Transacción: si dos supervisores aprueban a la vez, solo uno mueve el stock.
-                    guarded.run(ref, AdjustmentRepositoryImpl::pendingOrError, (doc, w) -> {
-                        Adjustment adj = toAdjustment(doc);
-                        w.update(ref, review(AdjustmentStatus.APROBADO, ""));
-                        String lotLabel = applyToLots(w, adj, productLots);
-                        inventory.apply(w, MovementType.AJUSTE, adj.getProductId(), adj.getProductCode(),
-                                adj.getProductName(), adj.getQuantity(),
-                                adj.getReason().getLabel() + " · aprobado por " + context.userName(),
-                                context.warehouseId(), lotLabel);
-                        return "Ajuste aprobado: " + adj.signedQuantity() + " un. de " + adj.getProductName()
-                                + (lotLabel != null ? "\nLotes: " + lotLabel : "");
-                    }, "No se pudo aprobar.", callback));
+            DocumentSnapshot snap = read.isSuccessful() ? read.getResult() : null;
+            Adjustment pre = snap != null && snap.exists() ? toAdjustment(snap) : null;
+            String productId = pre != null ? pre.getProductId() : null;
+            boolean pending = pre != null && pre.getStatus() == AdjustmentStatus.PENDIENTE;
+            // Las series pudieron moverse desde que se reportó (ej. se despacharon).
+            checkSerials(productId, pre != null ? pre.getQuantity() : 0,
+                    pending ? pre.getSerials() : null, serialError -> {
+                if (serialError != null) {
+                    callback.onResult(OperationResult.error(serialError));
+                    return;
+                }
+                lots.getLotsForProduct(productId, productLots ->
+                        // Transacción: si dos supervisores aprueban a la vez, solo uno mueve el stock.
+                        guarded.run(ref, AdjustmentRepositoryImpl::pendingOrError, (doc, w) -> {
+                            Adjustment adj = toAdjustment(doc);
+                            w.update(ref, review(AdjustmentStatus.APROBADO, ""));
+                            String lotLabel = applyToLots(w, adj, productLots);
+                            String serialLabel = applyToSerials(w, adj);
+                            inventory.apply(w, MovementType.AJUSTE, adj.getProductId(), adj.getProductCode(),
+                                    adj.getProductName(), adj.getQuantity(),
+                                    adj.getReason().getLabel() + " · aprobado por " + context.userName(),
+                                    context.warehouseId(), lotLabel, serialLabel);
+                            return "Ajuste aprobado: " + adj.signedQuantity() + " un. de " + adj.getProductName()
+                                    + (lotLabel != null ? "\nLotes: " + lotLabel : "")
+                                    + (serialLabel.isEmpty() ? "" : "\nSeries: " + serialLabel);
+                        }, "No se pudo aprobar.", callback));
+            });
         });
+    }
+
+    /** Rebaja: las series quedan dadas de baja. Entrada: se dan de alta en esta bodega. */
+    private String applyToSerials(Writes w, Adjustment adj) {
+        if (adj.getSerials().isEmpty()) return "";
+        String reference = "Ajuste: " + adj.getReason().getLabel();
+        if (adj.getQuantity() < 0) {
+            serialRepository.move(w, adj.getProductId(), adj.getSerials(), SerialStatus.BAJA,
+                    context.warehouseId(), reference);
+        } else {
+            serialRepository.addReceived(w, adj.getProductId(), adj.getProductCode(), adj.getProductName(),
+                    adj.getSerials(), reference);
+        }
+        return Serials.join(adj.getSerials());
     }
 
     /**
@@ -232,7 +287,8 @@ public class AdjustmentRepositoryImpl implements AdjustmentRepository {
                 Docs.str(doc, "", "reviewedByName"),
                 Docs.str(doc, "", "reviewNote"),
                 Docs.str(doc, "", "lotId"),
-                Docs.str(doc, "", "lotNumber")
+                Docs.str(doc, "", "lotNumber"),
+                Docs.strList(doc, "serials")
         );
     }
 }
