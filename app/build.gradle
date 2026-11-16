@@ -73,6 +73,13 @@ dependencies {
     // 2.9.x: última línea compatible con compileSdk 34.
     implementation 'androidx.work:work-runtime:2.9.1'
 
+    // --- Mapa (OpenStreetMap: no requiere API key ni facturación) ---
+    implementation 'org.osmdroid:osmdroid-android:6.1.18'
+
+    // --- API REST pública (clima Open-Meteo) ---
+    implementation 'com.squareup.retrofit2:retrofit:2.11.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.11.0'
+
     // --- Firebase ---
     implementation platform('com.google.firebase:firebase-bom:33.9.0')
     implementation 'com.google.firebase:firebase-analytics'

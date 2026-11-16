@@ -92,6 +92,9 @@
         <activity
             android:name=".dashboard.presentation.DashboardActivity"
             android:exported="false" />
+        <activity
+            android:name=".warehousemap.presentation.WarehouseMapActivity"
+            android:exported="false" />
 
         <!-- Fotos de evidencia: la app de cámara escribe en el caché de la app vía este proveedor. -->
         <provider

@@ -8,11 +8,14 @@ import android.os.Bundle;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 
+import com.example.erprukainventario.auth.presentation.LoginActivity;
 import com.example.erprukainventario.core.data.SyncStatusMonitor;
+import com.example.erprukainventario.warehousemap.presentation.WarehouseMapActivity;
 import com.example.erprukainventario.dashboard.presentation.DashboardActivity;
 import com.example.erprukainventario.location.presentation.LocationStockActivity;
 import com.example.erprukainventario.notifications.TaskAlertsScheduler;
@@ -95,11 +98,35 @@ public class HomeActivity extends AppCompatActivity {
         configureMenuButton(binding.btnDashboard, R.drawable.ic_chart_24, getString(R.string.home_menu_dashboard),
                 () -> startActivity(new Intent(this, DashboardActivity.class)));
 
+        configureMenuButton(binding.btnMapa, R.drawable.ic_map_24, getString(R.string.home_menu_mapa),
+                () -> startActivity(new Intent(this, WarehouseMapActivity.class)));
+
+        binding.btnLogout.setOnClickListener(v -> confirmLogout());
+
         // La campana abre las alertas (stock crítico, vencimientos, discrepancias).
         binding.ivBell.setOnClickListener(v -> startActivity(new Intent(this, DashboardActivity.class)));
 
         binding.btnScanNow.setOnClickListener(v ->
                 startActivity(new Intent(this, ProductLookupActivity.class)));
+    }
+
+    private void confirmLogout() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.home_logout_confirm_title)
+                .setMessage(R.string.home_logout_confirm_message)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.home_logout, (d, w) -> logout())
+                .show();
+    }
+
+    /** Cierra la sesión y vuelve al login sin dejar pantallas atrás (el botón Atrás no regresa al inicio). */
+    private void logout() {
+        taskAlerts.stop();
+        viewModel.logout();
+        Intent intent = new Intent(this, LoginActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
     }
 
     /** Android 13+ exige pedir permiso para mostrar notificaciones (guía §13). */

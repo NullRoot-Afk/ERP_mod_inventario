@@ -57,4 +57,11 @@ public class TaskAlertsScheduler {
         wm.enqueueUniqueWork(NOW, ExistingWorkPolicy.REPLACE,
                 new OneTimeWorkRequest.Builder(TaskCheckWorker.class).setConstraints(online).build());
     }
+
+    /** Al cerrar sesión: sin usuario no hay tareas que revisar ni avisar. */
+    public void stop() {
+        WorkManager wm = WorkManager.getInstance(appContext);
+        wm.cancelUniqueWork(PERIODIC);
+        wm.cancelUniqueWork(NOW);
+    }
 }

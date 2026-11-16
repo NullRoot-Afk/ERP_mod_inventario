@@ -9,6 +9,7 @@ import com.example.erprukainventario.adjustment.domain.Adjustment;
 import com.example.erprukainventario.adjustment.domain.AdjustmentStatus;
 import com.example.erprukainventario.auth.domain.AuthUser;
 import com.example.erprukainventario.auth.domain.UserRole;
+import com.example.erprukainventario.auth.data.AuthRepository;
 import com.example.erprukainventario.auth.data.SessionManager;
 import com.example.erprukainventario.core.data.WorkContext;
 import com.example.erprukainventario.count.data.CountRepository;
@@ -36,6 +37,7 @@ public class HomeViewModel extends ViewModel {
     private final TransferRepository transfers;
     private final AdjustmentRepository adjustments;
     private final WorkContext context;
+    private final AuthRepository auth;
 
     // Los callbacks llegan en el hilo principal: no hace falta sincronizar.
     private int pendingSum;
@@ -44,7 +46,9 @@ public class HomeViewModel extends ViewModel {
 
     @Inject
     public HomeViewModel(SessionManager sessionManager, PickingRepository picking, CountRepository counts,
-                         TransferRepository transfers, AdjustmentRepository adjustments, WorkContext context) {
+                         TransferRepository transfers, AdjustmentRepository adjustments, WorkContext context,
+                         AuthRepository auth) {
+        this.auth = auth;
         this.picking = picking;
         this.counts = counts;
         this.transfers = transfers;
@@ -64,6 +68,10 @@ public class HomeViewModel extends ViewModel {
 
     public LiveData<HomeUiState> getUiState() {
         return uiState;
+    }
+
+    public void logout() {
+        auth.logout();
     }
 
     /**

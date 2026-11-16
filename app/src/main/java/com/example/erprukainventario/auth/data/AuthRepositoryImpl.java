@@ -238,6 +238,12 @@ public class AuthRepositoryImpl implements AuthRepository {
     // ------------------------------------------------------------------
 
     @Override
+    public void logout() {
+        firebaseAuth.signOut();
+        sessionManager.clear();
+    }
+
+    @Override
     public void sendPasswordResetEmail(String email, RepositoryCallback<String> callback) {
         if (email == null || email.trim().isEmpty()) {
             callback.onResult("Por favor escribe tu correo electrónico primero.");

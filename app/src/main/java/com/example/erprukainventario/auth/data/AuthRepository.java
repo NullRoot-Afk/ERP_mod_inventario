@@ -13,6 +13,13 @@ public interface AuthRepository {
     /** Envía un correo electrónico de recuperación de contraseña con Firebase (devuelve null si tuvo éxito, o mensaje de error si falló). */
     void sendPasswordResetEmail(String email, RepositoryCallback<String> callback);
 
+    /**
+     * Cierra la sesión de Firebase y borra el usuario en memoria. La empresa
+     * configurada en el dispositivo se mantiene (el siguiente usuario solo inicia sesión),
+     * y las credenciales cacheadas siguen sirviendo para el login offline.
+     */
+    void logout();
+
     /** Resultado de validar un código de empresa contra el backend. */
     class CompanyValidationResult {
         private final boolean success;

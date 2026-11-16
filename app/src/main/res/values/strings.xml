@@ -278,4 +278,24 @@
     <string name="notif_sync_rejected_format">No se aplicó: %1$s. Otro usuario ya lo había modificado mientras no había conexión; no se movió stock. Revisa el estado actual en la app.</string>
     <string name="notif_daily_title">Alertas de bodega</string>
     <string name="notif_daily_format">%1$d productos con stock crítico · %2$d lotes vencidos o por vencer</string>
+
+    <!-- Cerrar sesión -->
+    <string name="home_logout">Cerrar sesión</string>
+    <string name="home_logout_confirm_title">¿Cerrar sesión?</string>
+    <string name="home_logout_confirm_message">Volverás a la pantalla de inicio de sesión. Los cambios hechos sin conexión que aún no se envían se enviarán al recuperar la red.</string>
+
+    <!-- Mapa de bodegas + clima (Open-Meteo) -->
+    <string name="home_menu_mapa">Mapa de bodegas y clima</string>
+    <string name="map_title">Mapa de bodegas</string>
+    <string name="map_subtitle">Toca una bodega para ver el clima actual</string>
+    <string name="map_hint">Toca un marcador para ver el clima en esa bodega.</string>
+    <string name="map_my_warehouse">Tu bodega</string>
+    <string name="map_no_coordinates">%1$d bodegas sin coordenadas no aparecen en el mapa.</string>
+    <string name="map_empty">Ninguna bodega de la empresa tiene coordenadas (campos lat y lng en WAREHOUSES).</string>
+    <string name="map_load_error">No se pudieron cargar las bodegas.</string>
+    <string name="map_weather_loading">Consultando el clima…</string>
+    <string name="map_weather_error">No se pudo obtener el clima. Revisa la conexión.</string>
+    <string name="map_weather_format">%1$s · %2$.1f °C</string>
+    <string name="map_weather_detail_format">Sensación %1$.1f °C · Viento %2$.0f km/h · Lluvia %3$.1f mm</string>
+    <string name="map_weather_source">Datos: Open-Meteo.com · Mapa: © OpenStreetMap</string>
 </resources>

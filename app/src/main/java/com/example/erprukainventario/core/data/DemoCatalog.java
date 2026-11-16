@@ -96,9 +96,10 @@ public class DemoCatalog {
             boolean write = false;
 
             if (warehouses.getResult().isEmpty()) {
-                putWarehouse(batch, context.warehouseId(), context.warehouseName());
-                putWarehouse(batch, branchWarehouseId(), branchWarehouseName());
-                putWarehouse(batch, secondBranchWarehouseId(), secondBranchWarehouseName());
+                // Coordenadas para el mapa de bodegas (Concepción, Talcahuano, Chillán).
+                putWarehouse(batch, context.warehouseId(), context.warehouseName(), -36.8201, -73.0444);
+                putWarehouse(batch, branchWarehouseId(), branchWarehouseName(), -36.7246, -73.1172);
+                putWarehouse(batch, secondBranchWarehouseId(), secondBranchWarehouseName(), -36.6066, -72.1034);
                 write = true;
             }
             if (products.getResult().isEmpty()) {
@@ -131,10 +132,12 @@ public class DemoCatalog {
         });
     }
 
-    private void putWarehouse(WriteBatch batch, String id, String name) {
+    private void putWarehouse(WriteBatch batch, String id, String name, double lat, double lng) {
         Map<String, Object> data = new HashMap<>();
         data.put("companyId", context.companyId());
         data.put("name", name);
+        data.put("lat", lat);
+        data.put("lng", lng);
         batch.set(firestore.collection(FirestoreCollections.WAREHOUSES).document(id), data);
     }
 
