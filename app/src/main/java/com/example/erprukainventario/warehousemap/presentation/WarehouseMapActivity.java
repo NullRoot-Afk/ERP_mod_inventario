@@ -13,7 +13,9 @@ import com.example.erprukainventario.warehousemap.domain.CurrentWeather;
 import com.example.erprukainventario.warehousemap.domain.WarehouseLocation;
 
 import org.osmdroid.config.Configuration;
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
+import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase;
+import org.osmdroid.tileprovider.tilesource.TileSourcePolicy;
+import org.osmdroid.tileprovider.tilesource.XYTileSource;
 import org.osmdroid.util.BoundingBox;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.overlay.Marker;
@@ -34,23 +36,45 @@ public class WarehouseMapActivity extends AppCompatActivity {
     /** Concepción: centro por defecto si ninguna bodega tiene coordenadas. */
     private static final GeoPoint DEFAULT_CENTER = new GeoPoint(-36.8270, -73.0498);
 
+    /**
+     * La política de uso de teselas de OpenStreetMap exige un User-Agent que identifique
+     * a la app: con el nombre del paquete ("com.example...") los servidores responden
+     * con la imagen "Access blocked".
+     */
+    private static final String USER_AGENT = "ERPRukaInventario/1.0 (Android; proyecto academico)";
+
+    /**
+     * Mismas teselas que {@link org.osmdroid.tileprovider.tilesource.TileSourceFactory#MAPNIK}
+     * y mismos límites (2 descargas paralelas, sin descarga masiva ni preventiva), pero SIN
+     * FLAG_USER_AGENT_NORMALIZED: con esa marca osmdroid ignora {@link #USER_AGENT} y envía
+     * "paquete/versión" ("com.example.erprukainventario/1"), que OSM bloquea.
+     * Al tener otro nombre tampoco reutiliza las teselas bloqueadas guardadas como "Mapnik".
+     */
+    private static final OnlineTileSourceBase OSM_TILES = new XYTileSource(
+            "OpenStreetMap", 0, 19, 256, ".png",
+            new String[]{"https://tile.openstreetmap.org/"},
+            "© OpenStreetMap contributors",
+            new TileSourcePolicy(2,
+                    TileSourcePolicy.FLAG_NO_BULK
+                            | TileSourcePolicy.FLAG_NO_PREVENTIVE
+                            | TileSourcePolicy.FLAG_USER_AGENT_MEANINGFUL));
+
     private ActivityWarehouseMapBinding binding;
     private WarehouseMapViewModel viewModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // osmdroid exige identificar la app ante los servidores de OpenStreetMap
-        // (política de uso de teselas) y guarda su configuración en preferencias propias.
+        // osmdroid guarda su configuración en preferencias propias.
         Configuration.getInstance().load(this, getSharedPreferences("osmdroid", Context.MODE_PRIVATE));
-        Configuration.getInstance().setUserAgentValue(getPackageName());
+        Configuration.getInstance().setUserAgentValue(USER_AGENT);
 
         binding = ActivityWarehouseMapBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         viewModel = new ViewModelProvider(this).get(WarehouseMapViewModel.class);
 
         binding.btnBack.setOnClickListener(v -> finish());
-        binding.map.setTileSource(TileSourceFactory.MAPNIK);
+        binding.map.setTileSource(OSM_TILES);
         binding.map.setMultiTouchControls(true);
         binding.map.getController().setZoom(11.0);
         binding.map.getController().setCenter(DEFAULT_CENTER);
