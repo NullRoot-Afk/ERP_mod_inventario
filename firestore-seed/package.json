@@ -1,0 +1,13 @@
+{
+  "name": "ruka-firestore-seed",
+  "private": true,
+  "description": "Carga datos de prueba (empresa, usuarios con roles, catálogo, lotes, series y tareas) en Firestore.",
+  "type": "module",
+  "scripts": {
+    "seed": "node seed.mjs",
+    "seed:emulator": "cd ../firestore-tests && npx firebase emulators:exec --only firestore,auth --project demo-ruka \"node ../firestore-seed/seed.mjs\""
+  },
+  "dependencies": {
+    "firebase-admin": "13.0.2"
+  }
+}

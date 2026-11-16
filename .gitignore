@@ -37,3 +37,7 @@ captures/
 firestore-tests/node_modules/
 firestore-debug.log
 firebase-debug.log
+
+# Semilla de datos de prueba: la clave de servicio NUNCA va al repositorio
+firestore-seed/node_modules/
+firestore-seed/service-account*.json
